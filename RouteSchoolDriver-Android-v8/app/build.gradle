@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'ma.routeschool.driver'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'ma.routeschool.driver'
+        minSdk 23
+        targetSdk 35
+        versionCode 8
+        versionName '8.0.0'
+    }
+
+    buildTypes {
+        debug { applicationIdSuffix '.debug' }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.13.0'
+}

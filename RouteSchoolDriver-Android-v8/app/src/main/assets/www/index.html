@@ -1,0 +1,1896 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071a3d">
+  <meta name="description" content="تطبيق سائق Route School Maroc لتتبع محطات الرحلة المدرسية">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Route School Maroc — Driver Map</title>
+
+  <!-- Leaflet.js + OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+       >
+
+  <style>
+    :root {
+      --navy-950: #06142f;
+      --navy-900: #071a3d;
+      --navy-800: #0b2757;
+      --navy-700: #12376f;
+      --ink: #0b1834;
+      --muted: #7d8aa5;
+      --paper: #f6f8fc;
+      --white: #ffffff;
+      --yellow: #ffd447;
+      --yellow-deep: #e5ad17;
+      --blue: #2563eb;
+      --cyan: #39c6e9;
+      --green: #23b87a;
+      --red: #ef5f64;
+      --line: rgba(148, 163, 184, .24);
+      --shadow: 0 22px 60px rgba(3, 15, 42, .28);
+      --glass: rgba(9, 29, 69, .72);
+      --glass-light: rgba(255,255,255,.13);
+      --radius-xl: 26px;
+      --radius-lg: 18px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --font: "Cairo", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background: var(--navy-950);
+      color: var(--white);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    button, input { font: inherit; }
+    button { border: 0; cursor: pointer; }
+    .hidden { display: none !important; }
+
+    /* ========================= Authentication ========================= */
+    #auth-screen, #login-screen {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      overflow: auto;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(57,198,233,.20), transparent 30%),
+        radial-gradient(circle at 90% 86%, rgba(255,212,71,.14), transparent 30%),
+        linear-gradient(145deg, #06142f 0%, #0a2352 52%, #071a3d 100%);
+      position: relative;
+      isolation: isolate;
+    }
+    #auth-screen::before, #login-screen::before,
+    #auth-screen::after, #login-screen::after {
+      content: "";
+      position: absolute;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: -1;
+    }
+    #login-screen::before { width: 420px; height: 420px; top: -190px; right: -150px; }
+    #auth-screen::after, #login-screen::after { width: 560px; height: 560px; bottom: -330px; left: -210px; }
+
+    .login-layout {
+      width: min(100%, 430px);
+      display: grid;
+      gap: 18px;
+      animation: rise .55s ease both;
+    }
+    .brand-lockup { text-align: center; }
+    .brand-mark {
+      width: 72px;
+      height: 72px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 15px;
+      border-radius: 24px;
+      color: var(--navy-950);
+      background: var(--yellow);
+      box-shadow: 0 14px 32px rgba(255, 212, 71, .25);
+      font-size: 36px;
+      transform: rotate(-3deg);
+    }
+    .brand-lockup h1 { margin: 0; font-size: 25px; letter-spacing: -.5px; }
+    .brand-lockup p { margin: 4px 0 0; color: rgba(255,255,255,.64); font-size: 13px; }
+
+    .login-card {
+      padding: 24px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.055));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+    .login-card h2 { margin: 0; font-size: 20px; }
+    .login-card .intro { margin: 6px 0 22px; color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.7; }
+    .field-label { display: block; margin-bottom: 8px; color: rgba(255,255,255,.76); font-size: 12px; font-weight: 800; }
+    .route-input-wrap { position: relative; }
+    .route-input {
+      width: 100%;
+      height: 54px;
+      padding: 0 16px;
+      border: 1px solid rgba(255,255,255,.17);
+      border-radius: 15px;
+      outline: none;
+      color: var(--white);
+      background: rgba(2, 12, 34, .38);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-align: center;
+      text-transform: uppercase;
+      direction: ltr;
+      transition: .18s ease;
+    }
+    .route-input::placeholder { color: rgba(255,255,255,.30); font-size: 15px; letter-spacing: 0; }
+    .route-input:focus { border-color: var(--yellow); box-shadow: 0 0 0 4px rgba(255,212,71,.13); }
+    .unlock-btn {
+      width: 100%;
+      height: 52px;
+      margin-top: 14px;
+      border-radius: 15px;
+      color: var(--navy-950);
+      background: var(--yellow);
+      box-shadow: 0 10px 24px rgba(255,212,71,.18);
+      font-weight: 900;
+      transition: transform .16s ease, background .16s ease;
+    }
+    .unlock-btn:hover { background: #ffe37d; transform: translateY(-1px); }
+    .unlock-btn:active { transform: translateY(0); }
+    .login-error { min-height: 20px; margin-top: 10px; color: #ff9c9f; font-size: 11px; text-align: center; }
+    .demo-label { margin: 7px 0 10px; color: rgba(255,255,255,.46); font-size: 11px; text-align: center; }
+    .demo-codes { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .demo-code {
+      padding: 7px 12px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 9px;
+      color: rgba(255,255,255,.72);
+      background: rgba(255,255,255,.06);
+      direction: ltr;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .demo-code:hover { border-color: var(--yellow); color: var(--yellow); }
+    .login-foot { margin: 0; color: rgba(255,255,255,.36); font-size: 10px; text-align: center; }
+
+    .login-card select.route-input { appearance: auto; -webkit-appearance: auto; padding-inline: 12px; }
+    .login-card input.route-input { text-transform: none; }
+
+    /* ========================= Application shell ========================= */
+    #app-shell {
+      position: relative;
+      display: none;
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow: hidden;
+      background: var(--navy-950);
+    }
+    #app-shell.is-ready { display: block; }
+    #map {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      z-index: 1;
+      background: #122342;
+    }
+    #map .leaflet-container { width: 100%; height: 100%; }
+    .leaflet-container { font-family: var(--font); background: #10213e; }
+    .leaflet-control-zoom { margin-top: 92px !important; margin-left: 14px !important; border: 0 !important; box-shadow: 0 10px 22px rgba(0,0,0,.22) !important; }
+    .leaflet-control-zoom a {
+      width: 36px !important; height: 36px !important; line-height: 34px !important;
+      color: var(--navy-900) !important; background: rgba(255,255,255,.92) !important;
+      border-bottom-color: rgba(7,26,61,.12) !important;
+    }
+    .leaflet-control-attribution { font-size: 9px !important; opacity: .75; }
+
+    /* Overlay gradient improves readability while preserving the map */
+    #map::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 400; background: linear-gradient(180deg, rgba(3,13,33,.54), transparent 25%, transparent 70%, rgba(3,13,33,.60)); }
+
+    .topbar {
+      position: absolute;
+      z-index: 600;
+      top: max(14px, env(safe-area-inset-top));
+      right: 14px;
+      left: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 62px;
+      padding: 9px 11px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 20px;
+      background: rgba(6, 20, 47, .76);
+      box-shadow: 0 16px 34px rgba(0,0,0,.22);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .topbar-route { min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; }
+    .tiny-bus { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 13px; color: var(--navy-950); background: var(--yellow); font-size: 22px; flex: 0 0 auto; }
+    .route-copy { min-width: 0; }
+    .route-copy strong { display: block; overflow: hidden; color: var(--white); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    .route-copy span { display: block; overflow: hidden; margin-top: 2px; color: rgba(255,255,255,.61); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .status-dot { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; color: #7af2bd; font-size: 10px; font-weight: 800; }
+    .status-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(35,184,122,.12); }
+    .topbar-actions { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+    .icon-action {
+      width: 38px; height: 38px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+      color: rgba(255,255,255,.82); background: rgba(255,255,255,.07); font-size: 16px;
+    }
+    .icon-action:hover { border-color: var(--yellow); color: var(--yellow); }
+
+    .map-badge {
+      position: absolute; z-index: 600; top: 91px; right: 16px;
+      display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px;
+      border: 1px solid rgba(255,255,255,.13); border-radius: 12px;
+      color: rgba(255,255,255,.83); background: rgba(6,20,47,.67); font-size: 10px; font-weight: 800;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    }
+    .map-badge .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(35,184,122,.16); }
+
+    .map-tools { position: absolute; z-index: 600; left: 14px; bottom: 260px; display: grid; gap: 8px; }
+    .map-tool {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.16); border-radius: 13px;
+      color: var(--white); background: rgba(6,20,47,.70); box-shadow: 0 10px 22px rgba(0,0,0,.18);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 17px;
+    }
+    .map-tool:hover { color: var(--yellow); border-color: var(--yellow); }
+
+    /* ========================= Station markers ========================= */
+    .station-pin-wrap { background: transparent; border: 0; }
+    .station-pin {
+      position: relative; width: 39px; height: 46px; display: grid; place-items: start center;
+      color: var(--navy-950); font-family: var(--font); font-size: 13px; font-weight: 1000;
+      filter: drop-shadow(0 5px 8px rgba(0,0,0,.35));
+    }
+    .station-pin::before {
+      content: ""; position: absolute; top: 0; width: 35px; height: 35px;
+      border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      background: var(--yellow); box-shadow: 0 0 18px rgba(255,212,71,.38);
+    }
+    .station-pin b { position: relative; z-index: 1; display: block; margin-top: 6px; line-height: 21px; direction:ltr; }
+    .station-pin.active::before { background: var(--cyan); box-shadow: 0 0 22px rgba(57,198,233,.75); }
+    .station-pin.active b { color: #032b4e; }
+    .school-pin { width: 42px; height: 42px; display: grid; place-items: center; border: 3px solid #fff; border-radius: 14px; color: var(--navy-950); background: var(--navy-900); box-shadow: 0 7px 16px rgba(0,0,0,.35); font-size: 20px; }
+    .bus-pin { width: 40px; height: 40px; display: grid; place-items: center; border: 3px solid #fff; border-radius: 50%; color: var(--navy-950); background: var(--yellow); box-shadow: 0 0 0 5px rgba(255,212,71,.18), 0 8px 18px rgba(0,0,0,.4); font-size: 19px; }
+
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { color: var(--white); background: rgba(6,20,47,.94); }
+    .leaflet-popup-content-wrapper { border: 1px solid rgba(255,255,255,.14); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+    .leaflet-popup-tip { border: 1px solid rgba(255,255,255,.06); }
+    .leaflet-popup-content { min-width: 190px; margin: 14px 15px; font-family: var(--font); }
+    .popup-kicker { color: var(--yellow); font-size: 10px; font-weight: 900; }
+    .popup-title { margin: 2px 0 8px; font-size: 15px; font-weight: 900; }
+    .popup-row { display: flex; justify-content: space-between; gap: 15px; padding: 5px 0; border-top: 1px solid rgba(255,255,255,.1); color: rgba(255,255,255,.72); font-size: 11px; }
+    .popup-row b { color: var(--white); }
+
+    /* ========================= Glass bottom trip panel ========================= */
+    .trip-panel {
+      position: absolute;
+      z-index: 600;
+      right: 14px;
+      bottom: max(10px, var(--safe-bottom));
+      left: 14px;
+      max-height: min(44dvh, 430px);
+      overflow: auto;
+      opacity: 0;
+      transform: translateY(120%);
+      transition: transform .48s cubic-bezier(.22,.9,.32,1), opacity .28s ease;
+      will-change: transform, opacity;
+      padding: 17px;
+      border: 1px solid rgba(255,255,255,.20);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(150deg, rgba(12,42,88,.86), rgba(5,20,48,.83));
+      box-shadow: 0 22px 55px rgba(0,0,0,.36);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      scrollbar-width: thin;
+    }
+    #app-shell.panel-mounted .trip-panel {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .trip-panel.sheet-collapsed {
+      max-height: 86px;
+      overflow: hidden;
+      cursor: grab;
+    }
+    .trip-panel.sheet-expanded {
+      max-height: min(58dvh, 520px);
+      overflow: auto;
+    }
+    .trip-panel.sheet-dragging {
+      cursor: grabbing;
+      user-select: none;
+      transition: none;
+    }
+    .sheet-drag-zone {
+      touch-action: none;
+      cursor: grab;
+      outline: none;
+    }
+    .sheet-drag-zone:active { cursor: grabbing; }
+    .drag-handle { width: 52px; height: 5px; margin: -2px auto 13px; border-radius: 99px; background: rgba(255,255,255,.38); transition: .18s ease; }
+    .sheet-drag-zone:hover .drag-handle,
+    .sheet-drag-zone:focus-visible .drag-handle { width: 72px; background: var(--yellow); box-shadow: 0 0 12px rgba(255,212,71,.35); }
+    .sheet-chevron { display: inline-block; margin-inline-start: 5px; font-size: 15px; transition: transform .24s ease; }
+    .trip-panel.sheet-expanded .sheet-chevron { transform: rotate(180deg); }
+    .trip-panel.sheet-collapsed .direction-toggle,
+    .trip-panel.sheet-collapsed .progress-line,
+    .trip-panel.sheet-collapsed .current-station,
+    .trip-panel.sheet-collapsed .panel-actions,
+    .trip-panel.sheet-collapsed .panel-note,
+    .trip-panel.sheet-collapsed .trip-ended { display: none; }
+    .panel-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .panel-kicker { color: rgba(255,255,255,.56); font-size: 10px; font-weight: 800; }
+    .panel-title { margin: 2px 0 0; color: var(--white); font-size: 17px; font-weight: 1000; }
+    .panel-meta { margin-top: 3px; color: rgba(255,255,255,.62); font-size: 11px; }
+    .panel-direction-label { color: var(--yellow); font-size: 10px; font-weight: 900; }
+
+    .direction-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-top: 15px;
+      padding: 4px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 14px;
+      background: rgba(0,0,0,.19);
+    }
+    .direction-btn {
+      min-height: 41px;
+      border-radius: 10px;
+      color: rgba(255,255,255,.59);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 900;
+      transition: .17s ease;
+    }
+    .direction-btn.active { color: var(--navy-950); background: var(--yellow); box-shadow: 0 4px 14px rgba(255,212,71,.20); }
+    .direction-btn:hover:not(.active) { color: var(--white); background: rgba(255,255,255,.08); }
+
+    .progress-line { display: flex; align-items: center; gap: 8px; margin: 15px 0 11px; }
+    .progress-line .line { position: relative; height: 4px; flex: 1; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.15); }
+    .progress-line .line i { display: block; width: 25%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--yellow), var(--cyan)); transition: width .28s ease; }
+    .progress-line .count { color: rgba(255,255,255,.66); font-size: 10px; font-weight: 900; direction: ltr; white-space: nowrap; }
+
+    .current-station {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 11px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 15px;
+      background: rgba(0,0,0,.16);
+    }
+    .station-index { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; color: var(--navy-950); background: var(--cyan); direction: ltr; font-size: 15px; font-weight: 1000; }
+    .current-copy { min-width: 0; }
+    .current-copy small { display: block; color: rgba(255,255,255,.52); font-size: 10px; }
+    .current-copy strong { display: block; overflow: hidden; margin-top: 2px; color: var(--white); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .current-copy span { display: block; margin-top: 2px; color: rgba(255,255,255,.58); font-size: 10px; }
+    .eta { text-align: left; direction: rtl; }
+    .eta b { display: block; color: var(--yellow); font-size: 14px; }
+    .eta span { color: rgba(255,255,255,.5); font-size: 9px; }
+
+    .panel-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 11px; }
+    .end-trip-btn { min-height: 45px; border-radius: 13px; color: #fff; background: var(--red); box-shadow: 0 8px 18px rgba(239,95,100,.18); font-size: 12px; font-weight: 1000; transition: .16s ease; }
+    .end-trip-btn:hover { background: #ff7478; transform: translateY(-1px); }
+    .end-trip-btn:disabled { cursor: not-allowed; opacity: .72; transform: none; }
+    .next-btn { width: 45px; min-height: 45px; border: 1px solid rgba(255,255,255,.14); border-radius: 13px; color: var(--white); background: rgba(255,255,255,.08); font-size: 17px; }
+    .next-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+    .panel-note { margin: 10px 1px 0; color: rgba(255,255,255,.42); font-size: 9px; line-height: 1.7; }
+
+    .trip-ended {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(35,184,122,.35);
+      border-radius: 12px;
+      color: #9af3ca;
+      background: rgba(35,184,122,.13);
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .trip-ended.show { display: block; }
+
+    .toast {
+      position: fixed;
+      z-index: 1000;
+      top: max(88px, calc(env(safe-area-inset-top) + 76px));
+      right: 14px;
+      left: 14px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      color: var(--white);
+      background: rgba(6,20,47,.91);
+      box-shadow: var(--shadow);
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      transform: translateY(-12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .25s ease;
+      backdrop-filter: blur(16px);
+    }
+    .toast.show { opacity: 1; transform: none; }
+
+    .offline-note {
+      position: absolute;
+      z-index: 600;
+      top: 94px;
+      left: 14px;
+      display: none;
+      padding: 7px 9px;
+      border: 1px solid rgba(255,212,71,.25);
+      border-radius: 10px;
+      color: var(--yellow);
+      background: rgba(6,20,47,.74);
+      font-size: 9px;
+    }
+    .offline-note.show { display: block; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+    @media (max-width: 699px) {
+      .trip-panel {
+        max-height: min(40dvh, 360px);
+        padding: 14px;
+      }
+      .panel-note { display: none; }
+      .map-tools { bottom: min(43dvh, 382px); }
+      .leaflet-control-zoom { margin-top: 100px !important; }
+    }
+
+    @media (min-width: 700px) {
+      .topbar { right: 24px; left: 24px; top: 20px; min-height: 68px; padding: 10px 14px; }
+      .map-badge { top: 101px; right: 27px; }
+      .trip-panel { right: 24px; bottom: 24px; left: auto; width: min(455px, calc(100% - 48px)); }
+      .map-tools { left: 24px; bottom: 28px; }
+      .toast { right: 24px; left: auto; width: 330px; }
+    }
+   .direction-order-card{margin:10px 14px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:13px;background:rgba(255,255,255,.045);direction:rtl}.direction-order-title{display:flex;justify-content:space-between;gap:8px;color:rgba(255,255,255,.86);font-size:10px;margin-bottom:7px}.direction-order-title span{color:#ffd447;font-weight:800}.direction-order-table{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:10px;color:rgba(255,255,255,.7)}.direction-order-row{display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border-radius:7px;background:rgba(0,0,0,.13);direction:ltr}.direction-order-row b{color:#fff}.route-arrow-icon{background:transparent;border:0}.route-arrow-icon span{display:block;color:#ffd447;font-size:22px;line-height:22px;text-shadow:0 1px 4px #06142f;transform-origin:50% 50%} </style>
+<script src="assets/html5-qrcode.min.js"></script>
+<style id="rsm-driver-qr-style">
+.qr-scan-card{margin-top:12px;padding:14px;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:rgba(0,0,0,.16)}
+.qr-scan-btn{width:100%;min-height:44px;border:0;border-radius:13px;background:var(--yellow);color:#0b1834;font-weight:900;font-size:13px}
+.qr-source-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.qr-source-btn{min-height:44px;border:1px solid rgba(255,255,255,.15);border-radius:13px;background:rgba(255,255,255,.07);color:#fff;font-weight:900;font-size:11px}.qr-source-btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.qr-scan-hint{margin-top:7px;font-size:9.5px;color:rgba(255,255,255,.55);line-height:1.7}
+.qr-route-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.qr-route-chip{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;border-radius:11px;padding:7px 9px;font-size:11px;font-weight:900;cursor:pointer}
+.qr-route-chip.active{background:var(--yellow);color:#0b1834;border-color:var(--yellow)}
+.qr-trip-strip{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.qr-trip-chip{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;border-radius:9px;padding:5px 8px;font-size:10px;font-weight:800}
+#qr-reader{width:100%;overflow:hidden;border-radius:14px;background:#000}.qr-modal-note{font-size:10px;color:rgba(255,255,255,.6);line-height:1.7;margin-top:9px}
+</style>
+</head>
+<body>
+  <!-- ========================= Authentication + Setup + Home ========================= -->
+  <section id="auth-screen" aria-label="تسجيل الدخول وإعداد التطبيق">
+    <div class="login-layout">
+      <header class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">🚌</div>
+        <h1>Route School Maroc</h1>
+        <p>تطبيق السائق · المسارات المدرسية بدون تعقيد</p>
+      </header>
+
+      <form class="login-card" id="login-form" novalidate>
+        <h2>تسجيل الدخول</h2>
+        <p class="intro">سجّل الدخول بالحساب المخصص لك للوصول إلى مسارات مؤسستك.</p>
+        <label class="field-label" for="login-email">البريد الإلكتروني</label>
+        <input class="route-input" id="login-email" type="email" autocomplete="username" placeholder="driver@example.ma" required style="letter-spacing:0;font-size:15px;text-align:right;direction:ltr;text-transform:none;">
+        <label class="field-label" for="login-password" style="margin-top:12px;">كلمة المرور</label>
+        <input class="route-input" id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" required style="letter-spacing:0;font-size:15px;text-align:right;direction:ltr;text-transform:none;">
+        <button class="unlock-btn" type="submit">دخول</button>
+        <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
+        <button class="demo-code" id="demo-login" type="button" style="width:100%;margin-top:4px;min-height:42px;">دخول تجريبي</button>
+      </form>
+
+      <form class="login-card hidden" id="setup-form" novalidate>
+        <h2>إعداد الجهاز</h2>
+        <p class="intro">اختر الجهة والمدينة مرة واحدة، ثم ستنتقل مباشرة إلى الصفحة الرئيسية.</p>
+        <label class="field-label" for="region-select">الجهة / المنطقة</label>
+        <select class="route-input" id="region-select" required style="letter-spacing:0;font-size:15px;text-align:right;direction:rtl;text-transform:none;">
+          <option value="" selected disabled>اختر الجهة / المنطقة</option>
+          <option>Casablanca-Settat</option><option>Rabat-Sale-Kenitra</option><option>Marrakech-Safi</option>
+          <option>Fes-Meknes</option><option>Tanger-Tetouan-Al Hoceima</option><option>Oriental</option>
+          <option>Souss-Massa</option><option>Beni Mellal-Khenifra</option><option>Draa-Tafilalet</option>
+          <option>Guelmim-Oued Noun</option><option>Laayoune-Sakia El Hamra</option><option>Dakhla-Oued Ed-Dahab</option>
+        </select>
+        <label class="field-label" for="city-input" style="margin-top:12px;">اسم المدينة</label>
+        <input class="route-input" id="city-input" type="text" autocomplete="address-level2" placeholder="مثال: الدار البيضاء" required style="letter-spacing:0;font-size:15px;text-align:right;direction:rtl;text-transform:none;">
+        <button class="unlock-btn" type="submit">متابعة إلى الصفحة الرئيسية</button>
+        <div class="login-error" id="setup-error" role="alert" aria-live="polite"></div>
+      </form>
+
+      <section class="login-card hidden" id="home-screen" aria-label="الصفحة الرئيسية">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div><h2 style="margin:0;">الصفحة الرئيسية</h2><p class="intro" style="margin:5px 0 0;">المسارات المرسلة من إدارة المدرسة</p></div>
+          <span class="status-dot" id="home-status">جاهز</span>
+        </div>
+        <div id="home-location-card" style="margin-top:16px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:15px;background:rgba(255,255,255,.06);font-size:11px;color:rgba(255,255,255,.72);"></div>
+        <div id="offline-setup-card" style="margin-top:12px;padding:15px;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:rgba(0,0,0,.16);">
+          <div style="font-size:13px;font-weight:900;">🗺️ إعداد العمل بدون إنترنت</div>
+          <div id="offline-setup-status" style="margin-top:6px;color:rgba(255,255,255,.58);font-size:10px;line-height:1.8;">أولاً جهّز ملفات التطبيق، ثم حمّل خريطة المنطقة/المدينة المحددة. بعد ظهور «الخريطة جاهزة» امسح QR الحافلة. بعدها يمكن تشغيل الرحلة بدون إنترنت.</div>
+          <div id="offline-progress-wrap" style="display:none;margin-top:10px;direction:ltr"><div style="height:10px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden"><i id="offline-progress-fill" style="display:block;width:0%;height:100%;border-radius:99px;background:#ffd447;transition:width .18s ease"></i></div><div style="display:flex;justify-content:space-between;gap:8px;margin-top:5px;color:rgba(255,255,255,.7);font:800 10px Tahoma,Arial"><span id="offline-progress-label">0%</span><span id="offline-progress-count">0/0</span></div></div>
+          <button class="unlock-btn" id="prepare-offline-btn" type="button" style="margin-top:12px;">⬇ 1) تجهيز التطبيق Online</button>
+          <button class="unlock-btn" id="download-region-map-btn" type="button" style="margin-top:8px;background:#18345f;" disabled>⬇ 2) تحميل خريطة المنطقة</button>
+          <div id="region-map-status" style="margin-top:8px;color:rgba(255,255,255,.58);font-size:10px;line-height:1.7;"></div>
+        </div>
+        <div style="margin-top:12px;padding:15px;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:rgba(0,0,0,.16);">
+          <div style="font-size:13px;font-weight:900;">🚌 المسار المرسل</div>
+          <div id="route-download-status" style="margin-top:6px;color:rgba(255,255,255,.58);font-size:10px;line-height:1.7;">لا يوجد مسار محمّل على هذا الجهاز.</div>
+          <button class="unlock-btn" id="download-route-btn" type="button" style="margin-top:12px;">⬇ تحميل المسار المرسل</button>
+          <button class="demo-code" id="open-demo-route-btn" type="button" style="width:100%;margin-top:8px;min-height:40px;">🗺️ تجربة الخريطة والمسار R01</button>
+          <input id="route-json-file" type="file" accept="application/json,.json" class="hidden">
+          <button class="demo-code" id="import-route-btn" type="button" style="width:100%;margin-top:8px;min-height:40px;">اختبار/استيراد ملف JSON</button>
+        </div>
+        <div class="qr-scan-card"><div style="font-size:13px;font-weight:900;">📷 QR الحافلة</div><div class="qr-scan-hint">افتح Route School Driver أولاً، ثم امسح QR من هنا أو اختر PNG. هذا QR يحمل بيانات المسار وليس رابطاً لفتح التطبيق من كاميرا الهاتف العادية.</div><div class="qr-source-grid"><button class="qr-scan-btn" id="open-qr-scanner-btn" type="button" disabled>📷 كاميرا / مسح QR</button><button class="qr-source-btn" id="pick-qr-image-btn" type="button" disabled>＋ صورة من الهاتف</button></div><input id="qr-image-file" type="file" accept="image/*" class="hidden">
+        <input id="qr-camera-capture" type="file" accept="image/*" capture="environment" class="hidden">
+        <div class="qr-scan-hint" style="margin-top:8px;">يمكن أيضاً اختيار PNG من WhatsApp/الملفات من زر «صورة من الهاتف».</div><div id="qr-selected-summary" class="qr-trip-strip"></div></div>
+        <button class="demo-code" id="home-logout-btn" type="button" style="width:100%;margin-top:12px;min-height:40px;">تسجيل الخروج</button>
+      </section>
+
+      <p class="login-foot">Route School Maroc © 2026 · تشغيل السائق Offline-first</p>
+    </div>
+  </section>
+
+  <div class="modal-overlay" id="qr-scanner-overlay" style="position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;background:rgba(3,9,22,.9);padding:14px;"><div style="width:100%;max-width:460px;background:#0b1834;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:14px;"><div style="display:flex;align-items:center;justify-content:space-between;color:#fff;margin-bottom:10px"><b>📷 مسح QR الحافلة</b><button id="close-qr-scanner-btn" type="button" class="demo-code" style="width:auto;min-width:42px;min-height:36px">×</button></div><div id="qr-reader"></div><div id="qr-scan-status" class="qr-modal-note">وجّه الكاميرا إلى رمز QR المطبوع على الحافلة.</div></div></div>
+
+  <!-- ========================= Driver map application ========================= -->
+  <main id="app-shell" aria-label="خريطة رحلة السائق">
+    <div id="map" aria-label="الخريطة التفاعلية للمحطات"></div>
+
+    <header class="topbar">
+      <div class="topbar-route">
+        <div class="tiny-bus" aria-hidden="true">🚌</div>
+        <div class="route-copy">
+          <strong id="top-route-title">المسار R01 · الحافلة BUS-01</strong>
+          <span id="top-route-subtitle">السائق · —</span>
+          <span class="status-dot" id="connection-status">متصل الآن</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-action" id="recenter-btn" type="button" aria-label="توسيط الخريطة" title="توسيط الخريطة">⌖</button>
+        <button class="icon-action" id="logout-btn" type="button" aria-label="تسجيل الخروج" title="تسجيل الخروج">↪</button>
+      </div>
+    </header>
+
+    <div class="map-badge"><span class="pulse"></span><span id="map-live-label">تتبع مباشر · 0 محطات</span></div>
+    <div class="offline-note" id="offline-note">وضع المعاينة المحلية — بيانات الرحلة محفوظة مؤقتًا</div>
+
+    <div class="map-tools" aria-label="أدوات الخريطة">
+      <button class="map-tool" id="locate-btn" type="button" aria-label="موقعي الحالي" title="موقعي الحالي">◉</button>
+      <button class="map-tool" id="route-fit-btn" type="button" aria-label="إظهار كل المحطات" title="إظهار كل المحطات">⛶</button>
+      <button class="map-tool" id="cache-map-btn" type="button" aria-label="تحميل خريطة المسار" title="تحميل خريطة المسار">⬇</button>
+    </div>
+
+    <section class="trip-panel sheet-collapsed" id="trip-panel" aria-label="لوحة الرحلة" aria-expanded="false">
+      <!-- المنطقة العلوية هي نقطة السحب/الضغط لرفع اللوحة أو إنزالها -->
+      <div class="sheet-drag-zone" id="sheet-drag-zone" role="button" tabindex="0" aria-label="رفع أو إنزال لوحة الرحلة" aria-controls="trip-panel" aria-expanded="false">
+        <div class="drag-handle" aria-hidden="true"></div>
+        <div class="panel-top">
+          <div>
+            <div class="panel-kicker">الرحلة الحالية</div>
+            <h2 class="panel-title" id="panel-route-title">المسار R01</h2>
+            <div class="panel-meta" id="panel-route-meta">BUS-01 · —</div>
+          </div>
+          <div class="panel-direction-label" id="direction-label">اتجاه الذهاب <span class="sheet-chevron" aria-hidden="true">⌃</span></div>
+        </div>
+      </div>
+
+      <div class="direction-toggle" role="group" aria-label="اتجاه الرحلة">
+        <button class="direction-btn active" id="inbound-btn" type="button" data-direction="inbound">الدخول</button>
+        <button class="direction-btn" id="outbound-btn" type="button" data-direction="outbound">الخروج</button>
+      </div>
+      <div class="direction-order-card" aria-live="polite"><div class="direction-order-title"><b>ترتيب المحطات</b><span id="direction-order-caption">الدخول: 1 → 10</span></div><div class="direction-order-table" id="direction-order-table"></div>
+      </div>
+
+      <div class="progress-line" aria-label="تقدم المحطات">
+        <span class="count" id="progress-start">1</span>
+        <div class="line"><i id="progress-fill"></i></div>
+        <span class="count" id="progress-end">4</span>
+        <span class="count" id="progress-count">1/4</span>
+      </div>
+
+      <div class="current-station" id="current-station-card">
+        <div class="station-index" id="current-index">1</div>
+        <div class="current-copy">
+          <small id="current-kicker">المحطة الحالية</small>
+          <strong id="current-name">—</strong>
+          <span id="current-detail">—</span>
+        </div>
+        <div class="eta"><b id="current-eta">—</b><span>الوصول المتوقع</span></div>
+      </div>
+
+      <div class="panel-actions">
+        <button class="end-trip-btn" id="end-trip-btn" type="button">⏻ إنهاء الرحلة</button>
+        <button class="next-btn" id="next-btn" type="button" aria-label="المحطة التالية" title="المحطة التالية">←</button>
+      </div>
+      <p class="panel-note" id="panel-note">اضغط على أي علامة في الخريطة لعرض الطلاب والعنوان. عند تغيير الاتجاه، يتم عكس ترتيب المحطات وأرقامها تلقائيًا.</p>
+      <div class="trip-ended" id="trip-ended">✓ تم إنهاء الرحلة بنجاح. يمكنك تسجيل الخروج أو فتح مسار آخر.</div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+></script>
+
+  <script>
+    "use strict";
+
+    const ROUTES = {
+      R01: {
+        code: "R01",
+        bus: "BUS-01",
+        driver: "خالد السعيد",
+        school: "مدرسة النور",
+        color: "#ffd447",
+        stations: [
+          { id: "r01-s1", name: "حي الياسمين", address: "شارع الأمل، قرب مدرسة النور", students: 8, eta: "07:18", lat: 33.5956, lng: -7.6139 },
+          { id: "r01-s2", name: "حي النهضة", address: "شارع الفلاح، المدخل الرئيسي", students: 6, eta: "07:24", lat: 33.6022, lng: -7.6025 },
+          { id: "r01-s3", name: "شارع عائشة", address: "مقابل مركز الحي", students: 5, eta: "07:31", lat: 33.6104, lng: -7.5904 },
+          { id: "r01-s4", name: "حي الأمل", address: "الطريق الدائري، البوابة الجنوبية", students: 9, eta: "07:38", lat: 33.6181, lng: -7.5748 }
+        ]
+      },
+      R02: {
+        code: "R02",
+        bus: "BUS-02",
+        driver: "محمد علي",
+        school: "مدرسة الأمل",
+        color: "#39c6e9",
+        stations: [
+          { id: "r02-s1", name: "حي السلام", address: "زنقة 12، قرب المسجد الكبير", students: 7, eta: "07:15", lat: 33.5838, lng: -7.6420 },
+          { id: "r02-s2", name: "المعاريف", address: "شارع المقاومة، المحطة المركزية", students: 5, eta: "07:23", lat: 33.5880, lng: -7.6282 },
+          { id: "r02-s3", name: "عين الشق", address: "طريق الجامعة، بوابة الحي", students: 8, eta: "07:30", lat: 33.5729, lng: -7.5820 },
+          { id: "r02-s4", name: "سيدي معروف", address: "مقابل المركز الصحي", students: 6, eta: "07:39", lat: 33.5453, lng: -7.6198 }
+        ]
+      },
+      R03: {
+        code: "R03",
+        bus: "BUS-03",
+        driver: "يوسف كريم",
+        school: "مدرسة الأمل",
+        color: "#77dd8c",
+        stations: [
+          { id: "r03-s1", name: "حي الوفاق", address: "الشارع الرئيسي، العمارة 4", students: 6, eta: "07:20", lat: 33.2600, lng: -7.5800 },
+          { id: "r03-s2", name: "حي المسيرة", address: "قرب السوق الأسبوعي", students: 9, eta: "07:28", lat: 33.2705, lng: -7.5910 },
+          { id: "r03-s3", name: "الحي الإداري", address: "مقابل الملحقة الإدارية", students: 4, eta: "07:35", lat: 33.2660, lng: -7.5870 },
+          { id: "r03-s4", name: "المدينة الجديدة", address: "المدخل الشرقي للمدينة", students: 7, eta: "07:43", lat: 33.2630, lng: -7.5760 }
+        ]
+      }
+    };
+
+    const SCHOOL_COORDS = {
+      R01: [33.6263, -7.5852],
+      R02: [33.5900, -7.6100],
+      R03: [33.2688, -7.5862]
+    };
+
+    const app = {
+      route: null,
+      direction: "inbound",
+      currentIndex: 0,
+      map: null,
+      layerGroup: null,
+      routeLine: null,
+      schoolMarker: null,
+      busMarker: null,
+      studentMarkers: new Map(),
+      watchId: null
+    };
+
+    const $ = selector => document.querySelector(selector);
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value).replace(/[&<>'"]/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        "\"": "&quot;"
+      }[char]));
+    }
+
+    function showToast(message, duration = 2800) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), duration);
+    }
+
+    function getOrderedStations() {
+      if (!app.route) return [];
+
+      const stations = app.direction === "inbound"
+        ? [...app.route.stations]
+        : [...app.route.stations].reverse();
+
+      return stations.map((station, index) => ({
+        ...station,
+        sequence: index + 1,
+        originalSequence: app.route.stations.findIndex(item => item.id === station.id) + 1
+      }));
+    }
+
+    function stationIcon(sequence, active = false) {
+      return L.divIcon({
+        className: "station-pin-wrap",
+        iconSize: [39, 46],
+        iconAnchor: [20, 43],
+        popupAnchor: [0, -42],
+        html: `<div class="station-pin${active ? " active" : ""}"><b>${sequence}</b></div>`
+      });
+    }
+
+    function schoolIcon() {
+      return L.divIcon({
+        className: "school-pin-wrap",
+        iconSize: [42, 42],
+        iconAnchor: [21, 21],
+        html: `<div class="school-pin" title="المدرسة">🏫</div>`
+      });
+    }
+
+    function busIcon() {
+      return L.divIcon({
+        className: "bus-pin-wrap",
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        html: `<div class="bus-pin" title="الحافلة">🚌</div>`
+      });
+    }
+
+    function buildStationPopup(station) {
+      const directionText = app.direction === "inbound" ? "ذهاب نحو المدرسة" : "عودة إلى المنزل";
+      return `
+        <div class="popup-kicker">المحطة ${station.sequence} · ${directionText}</div>
+        <div class="popup-title">${escapeHtml(station.name)}</div>
+        <div class="popup-row"><span>العنوان</span><b>${escapeHtml(station.address)}</b></div>
+        <div class="popup-row"><span>التلاميذ</span><b>${station.students}</b></div>
+        <div class="popup-row"><span>الترتيب الأصلي</span><b>${station.originalSequence}</b></div>
+        <div class="popup-row"><span>الوصول المتوقع</span><b>${escapeHtml(station.eta)}</b></div>
+      `;
+    }
+
+    function isSecureCameraContext(){
+      return window.isSecureContext === true || location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    }
+
+    function showMapStatus(message, kind="info"){
+      let el=document.getElementById("driver-map-status");
+      if(!el){
+        el=document.createElement("div");
+        el.id="driver-map-status";
+        el.style.cssText="position:absolute;left:50%;top:92px;transform:translateX(-50%);z-index:500;background:rgba(7,26,61,.94);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:8px 12px;font:800 10px/1.6 Tahoma,Arial,sans-serif;max-width:88%;text-align:center;box-shadow:0 8px 25px rgba(0,0,0,.2);";
+        document.getElementById("app-shell")?.appendChild(el);
+      }
+      el.textContent=message;
+      el.style.display="block";
+      clearTimeout(el._hideTimer);
+      el._hideTimer=setTimeout(()=>el.style.display="none",7000);
+    }
+
+    function tileUrl(z,x,y){
+      return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`;
+    }
+
+    function latLngToTile(lat,lng,z){
+      const n=2**z, rad=lat*Math.PI/180;
+      return {
+        x:Math.floor((lng+180)/360*n),
+        y:Math.floor((1-Math.asinh(Math.tan(rad))/Math.PI)/2*n)
+      };
+    }
+
+    function setOfflineProgress(percent,label='',done=0,total=0){
+      const wrap=document.getElementById('offline-progress-wrap'),fill=document.getElementById('offline-progress-fill'),text=document.getElementById('offline-progress-label'),count=document.getElementById('offline-progress-count');
+      let mapProgress=document.getElementById('driver-map-progress');
+      if(!mapProgress && document.getElementById('app-shell')){mapProgress=document.createElement('div');mapProgress.id='driver-map-progress';mapProgress.style.cssText='position:absolute;left:14px;right:14px;top:136px;z-index:700;display:none;padding:10px 12px;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(6,20,47,.94);color:#fff;font:800 11px/1.5 Tahoma,Arial,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.24)';mapProgress.innerHTML='<div id=driver-map-progress-text>تحميل الخريطة 0%</div><div style="height:8px;margin-top:6px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden"><i id=driver-map-progress-fill style="display:block;width:0%;height:100%;background:#ffd447;border-radius:99px"></i></div>';document.getElementById('app-shell').appendChild(mapProgress);}
+      if(wrap)wrap.style.display='block';
+      const value=Math.max(0,Math.min(100,Math.round(percent||0)));
+      if(fill)fill.style.width=value+'%';
+      if(text)text.textContent=(label?label+' · ':'')+value+'%';
+      if(count)count.textContent=total?`${done}/${total}`:'';
+      const mapFill=document.getElementById('driver-map-progress-fill'),mapText=document.getElementById('driver-map-progress-text');
+      if(mapFill)mapFill.style.width=value+'%'; if(mapText)mapText.textContent=(label||'تحميل')+' '+value+'%'+(total?` · ${done}/${total}`:'');
+      if(mapProgress)mapProgress.style.display=value>=100?'none':'block';
+    }
+
+    // --- Region/city offline map -------------------------------------------------
+    // The driver chooses a Moroccan region + city before scanning the bus QR.
+    // Known city centres avoid guessing coordinates from free text.
+    const RSM_CITY_CENTERS = {
+      "الدار البيضاء":[33.5731,-7.5898], "casablanca":[33.5731,-7.5898],
+      "الرباط":[34.0209,-6.8416], "rabat":[34.0209,-6.8416],
+      "سلا":[34.0331,-6.7985], "sale":[34.0331,-6.7985], "salé":[34.0331,-6.7985],
+      "تمارة":[33.9292,-6.9063], "temara":[33.9292,-6.9063],
+      "القنيطرة":[34.2610,-6.5802], "kenitra":[34.2610,-6.5802],
+      "مراكش":[31.6295,-7.9811], "marrakech":[31.6295,-7.9811],
+      "فاس":[34.0331,-5.0003], "fes":[34.0331,-5.0003], "fez":[34.0331,-5.0003],
+      "مكناس":[33.8935,-5.5473], "meknes":[33.8935,-5.5473],
+      "طنجة":[35.7595,-5.8340], "tangier":[35.7595,-5.8340], "tanger":[35.7595,-5.8340],
+      "تطوان":[35.5889,-5.3626], "tetouan":[35.5889,-5.3626],
+      "وجدة":[34.6814,-1.9086], "oujda":[34.6814,-1.9086],
+      "أكادير":[30.4278,-9.5981], "agadir":[30.4278,-9.5981],
+      "بني ملال":[32.3373,-6.3498], "beni mellal":[32.3373,-6.3498],
+      "الرشيدية":[31.9314,-4.4244], "errachidia":[31.9314,-4.4244],
+      "خريبكة":[32.8855,-6.9063], "khouribga":[32.8855,-6.9063],
+      "سطات":[33.0010,-7.6166], "settat":[33.0010,-7.6166],
+      "الجديدة":[33.2316,-8.5007], "el jadida":[33.2316,-8.5007], "jadida":[33.2316,-8.5007],
+      "المحمدية":[33.6861,-7.3829], "mohammedia":[33.6861,-7.3829],
+      "آسفي":[32.2994,-9.2372], "safi":[32.2994,-9.2372],
+      "الصويرة":[31.5085,-9.7595], "essaouira":[31.5085,-9.7595],
+      "العيون":[27.1253,-13.1625], "laayoune":[27.1253,-13.1625],
+      "الداخلة":[23.6848,-15.9570], "dakhla":[23.6848,-15.9570],
+      "كلميم":[28.9870,-10.0574], "guelmim":[28.9870,-10.0574]
+    };
+    const rsmNormCity = v => String(v||'').trim().toLowerCase().replace(/[ًٌٍَُِّْـ]/g,'').replace(/\s+/g,' ');
+    function getSelectedCityCenter(){
+      const city=rsmNormCity(document.getElementById('city-input')?.value);
+      return RSM_CITY_CENTERS[city] || null;
+    }
+    function setRegionMapState(ready, message){
+      const b=document.getElementById('download-region-map-btn'), q1=document.getElementById('open-qr-scanner-btn'), q2=document.getElementById('pick-qr-image-btn');
+      const st=document.getElementById('region-map-status');
+      if(b) b.disabled=false;
+      if(st) st.textContent=message || (ready?'✅ خريطة المنطقة جاهزة للعمل Offline.':'');
+      [q1,q2].forEach(x=>{if(x)x.disabled=!ready;});
+      if(ready) saveMobileState('rsm_region_map_ready',{ready:true,city:rsmNormCity(document.getElementById('city-input')?.value),updatedAt:new Date().toISOString()});
+    }
+    async function cacheRegionMapTiles(){
+      const center=getSelectedCityCenter();
+      const city=document.getElementById('city-input')?.value.trim();
+      if(!center){
+        const msg='المدينة غير موجودة في القائمة المدمجة. اختر مدينة مغربية مدعومة مثل الدار البيضاء، الرباط، مراكش، فاس، طنجة، أكادير…';
+        showToast(msg); document.getElementById('region-map-status').textContent='⚠️ '+msg; return false;
+      }
+      if(!window.isSecureContext && location.protocol!=='https:'){showToast('تحميل الخريطة Offline يحتاج HTTPS/PWA');return false;}
+      if(!('caches' in window)){showToast('التخزين المؤقت للخرائط غير متاح في هذا الجهاز.');return false;}
+      const [clat,clng]=center, radiusKm=8;
+      const points=[[clat,clng]];
+      // Approximate city bounding box, with a generous margin for school routes.
+      const dLat=radiusKm/111, dLng=radiusKm/(111*Math.max(.2,Math.cos(clat*Math.PI/180)));
+      const samples=[];
+      for(let a=0;a<360;a+=30){const r=a*Math.PI/180;samples.push([clat+Math.sin(r)*dLat,clng+Math.cos(r)*dLng]);}
+      points.push(...samples);
+      const urls=new Set();
+      for(const [lat,lng] of points){
+        for(const z of [11,12,13,14,15]){
+          const t=latLngToTile(lat,lng,z),n=2**z;
+          for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const x=(t.x+dx+n)%n,y=t.y+dy;if(y>=0&&y<n)urls.add(tileUrl(z,x,y));}
+        }
+      }
+      const cache=await caches.open('rsm-driver-map-v12'), list=[...urls]; let done=0,failed=0;
+      setOfflineProgress(0,'خريطة '+city,0,list.length);
+      const btn=document.getElementById('download-region-map-btn'); if(btn)btn.disabled=true;
+      try{
+        for(const url of list){
+          try{const req=new Request(url,{mode:'cors'});if(!await cache.match(req)){const res=await fetch(req);if(res.ok)await cache.put(req,res.clone());else failed++;}}
+          catch(e){failed++;}
+          done++;setOfflineProgress(done/list.length*100,'خريطة '+city,done,list.length);
+        }
+        const ok=failed===0;
+        const msg=ok?`✅ خريطة ${city} جاهزة للعمل Offline · ${done} بلاطة`:`⚠️ تم تنزيل ${done-failed}/${list.length} بلاطة. أعد المحاولة قبل مغادرة المنطقة.`;
+        setRegionMapState(ok,msg); showMapStatus(msg,ok?'info':'error'); showToast(msg); return ok;
+      }finally{if(btn)btn.disabled=false;}
+    }
+
+    async function cacheRouteMapTiles(){
+      if(!app.route){ showToast("لا يوجد مسار لتحميل خريطته. امسح QR أولاً."); return false; }
+      if(!window.isSecureContext && location.protocol!=="https:"){ showMapStatus("افتح التطبيق عبر HTTPS حتى يمكن حفظ الخريطة Offline.","error"); showToast("تحميل الخريطة Offline يحتاج HTTPS/PWA"); return false; }
+      if(!("caches" in window)){ showToast("التخزين المؤقت للخرائط غير متاح في هذا المتصفح."); return false; }
+      const points=[]; const sp=app.route.schoolPoint;
+      if(sp&&validCoordinate(Number(sp.lat),Number(sp.lng))) points.push([Number(sp.lat),Number(sp.lng)]);
+      getOrderedStations().forEach(x=>{if(validCoordinate(Number(x.lat),Number(x.lng)))points.push([Number(x.lat),Number(x.lng)]);});
+      const geom=Array.isArray(app.route.routingGeometry)&&app.route.routingGeometry.length?app.route.routingGeometry:(Array.isArray(app.route.geometry)?app.route.geometry:[]);
+      const step=Math.max(1,Math.ceil(geom.length/120));
+      for(let i=0;i<geom.length;i+=step){const x=geom[i];if(Array.isArray(x)&&validCoordinate(Number(x[0]),Number(x[1])))points.push([Number(x[0]),Number(x[1])]);}
+      if(!points.length){showToast("لا توجد إحداثيات صالحة للمسار.");return false;}
+      const urls=new Set();
+      for(const [lat,lng] of points)for(const z of [12,13,14,15,16]){const t=latLngToTile(lat,lng,z),n=2**z;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const x=(t.x+dx+n)%n,y=t.y+dy;if(y>=0&&y<n)urls.add(tileUrl(z,x,y));}}
+      const cache=await caches.open("rsm-driver-map-v12"),list=[...urls];let done=0,failed=0;
+      setOfflineProgress(0,'الخريطة',0,list.length);
+      for(const url of list){try{const req=new Request(url,{mode:'cors'});if(!await cache.match(req)){const res=await fetch(req);if(res.ok)await cache.put(req,res.clone());else failed++;}}catch(e){failed++;}done++;setOfflineProgress(done/list.length*100,'الخريطة',done,list.length);}
+      const message=failed?`اكتمل تحميل ${done-failed}/${list.length} بلاطة. أعد المحاولة مع اتصال أقوى.`:`الخريطة جاهزة للعمل Offline · ${done} بلاطة`;
+      document.getElementById('offline-setup-status').textContent=message;showMapStatus(message,failed?'error':'info');showToast(message);return failed===0;
+    }
+    function buildMap() {
+      if (app.map || typeof L === "undefined") return;
+
+      const center = SCHOOL_COORDS[app.route.code] || [33.5900, -7.6100];
+      app.map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true,
+        zoomSnap: .25,
+        preferCanvas: true
+      }).setView(center, 13);
+
+      const tiles=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: "Tiles © Esri — Source: Esri, OpenStreetMap contributors"
+      }).addTo(app.map);
+      tiles.on("tileerror",()=>showMapStatus("تعذر تحميل بلاطات الخريطة. تحقق من الإنترنت، أو استخدم خريطة المسار المحفوظة Offline."));
+      tiles.on("load",()=>showMapStatus("الخريطة جاهزة."));
+
+      app.layerGroup = L.layerGroup().addTo(app.map);
+      setTimeout(() => app.map.invalidateSize(), 100);
+    }
+
+    function directionDisplayNumber(station){ return app.direction === "inbound" ? station.sequence : station.originalSequence; }
+    function renderDirectionOrder(){ const box=document.getElementById("direction-order-table"),caption=document.getElementById("direction-order-caption"); if(!box||!app.route)return; const total=(app.route.stations||[]).length; box.innerHTML=Array.from({length:total},(_,i)=>`<div class="direction-order-row"><b>${i+1}</b><span>↔</span><b>${total-i}</b></div>`).join(""); if(caption)caption.textContent=app.direction==="inbound"?`الدخول: 1 → ${total}`:`الخروج: ${total} → 1`; }
+    function addDirectionArrows(lineCoords){ if(!app.layerGroup||!Array.isArray(lineCoords)||lineCoords.length<2)return; const count=Math.min(5,Math.max(1,Math.floor(lineCoords.length/2))); for(let i=1;i<=count;i++){const idx=Math.max(0,Math.min(lineCoords.length-2,Math.floor(i*lineCoords.length/(count+1))));const a=lineCoords[idx],b=lineCoords[idx+1],angle=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;const icon=L.divIcon({className:"route-arrow-icon",iconSize:[24,24],iconAnchor:[12,12],html:`<span style="transform:rotate(${angle-90}deg)">➤</span>`});L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{icon,interactive:false,zIndexOffset:350}).addTo(app.layerGroup);}}
+
+    function renderMap() {
+      if (!app.map || !app.route) return;
+
+      try {
+      app.layerGroup.clearLayers();
+      app.studentMarkers.clear();
+
+      const orderedStations = getOrderedStations();
+      const sp = app.route.schoolPoint;
+      const schoolCoords = sp && validCoordinate(Number(sp.lat),Number(sp.lng))
+        ? [Number(sp.lat),Number(sp.lng)]
+        : (SCHOOL_COORDS[app.route.code] || [33.5900, -7.6100]);
+      const stationCoords = orderedStations.map(station => [station.lat, station.lng]);
+
+      // Inbound: stations 1 -> 4 -> school.
+      // Outbound: school -> stations 4 -> 1.
+      const storedGeometry = Array.isArray(app.route.routingGeometry) && app.route.routingGeometry.length >= 2
+        ? app.route.routingGeometry
+        : (Array.isArray(app.route.geometry) && app.route.geometry.length >= 2 ? app.route.geometry : null);
+      const geometryCoords = storedGeometry
+        ? storedGeometry.map(p => Array.isArray(p) ? [Number(p[0]), Number(p[1])] : null)
+            .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+        : null;
+      const lineCoords = geometryCoords?.length >= 2
+        ? (app.direction === "inbound" ? geometryCoords : [...geometryCoords].reverse())
+        : (app.direction === "inbound" ? [...stationCoords, schoolCoords] : [schoolCoords, ...stationCoords]);
+
+      app.routeLine = L.polyline(lineCoords, {
+        color: app.route.color,
+        weight: 5,
+        opacity: .92,
+        lineCap: "round",
+        lineJoin: "round",
+        dashArray: app.direction === "outbound" ? "10 8" : null
+      }).addTo(app.layerGroup);
+      addDirectionArrows(lineCoords);
+
+      app.schoolMarker = L.marker(schoolCoords, { icon: schoolIcon(), zIndexOffset: 800 })
+        .addTo(app.layerGroup)
+        .bindTooltip(`<strong>${escapeHtml(app.route.school)}</strong><br>نقطة المدرسة`, { direction: "top", sticky: true });
+
+      const validStations = orderedStations.filter(station => validCoordinate(Number(station.lat), Number(station.lng)));
+      validStations.forEach(station => {
+        const isActive = station.sequence === app.currentIndex + 1;
+        const marker = L.marker(
+          [station.lat, station.lng],
+          { icon: stationIcon(directionDisplayNumber(station), isActive), zIndexOffset: isActive ? 700 : 500 }
+        )
+          .addTo(app.layerGroup)
+          .bindPopup(buildStationPopup(station), { closeButton: true, autoPan: true })
+          .bindTooltip(`${app.direction === "inbound" ? "الدخول" : "الخروج"} · المحطة ${directionDisplayNumber(station)} · ${escapeHtml(station.name)}`, { direction: "top", sticky: true });
+
+        marker.on("click", () => {
+          app.currentIndex = station.sequence - 1;
+          updatePanel();
+          refreshMarkerStyles();
+          // عرض تفاصيل المحطة عند اختيارها من الخريطة.
+          setSheetState(true);
+        });
+
+        app.studentMarkers.set(station.id, marker);
+      });
+
+      // Waypoints المضمّنة في RSM-ROUTE-PACKAGE v2 — تُعرض كعلامات إلزامية.
+      (app.route.waypoints || []).forEach((wp, wi) => {
+        if(!validCoordinate(Number(wp.lat),Number(wp.lng))) return;
+        L.circleMarker([Number(wp.lat),Number(wp.lng)], {
+          radius: 5, color: app.route.color || "#ffd447", weight: 2, fillOpacity: .9, zIndexOffset: 400
+        }).addTo(app.layerGroup)
+          .bindTooltip(`نقطة مرور ${wi+1}${wp.mandatory===false?'':' · إلزامية'} · ${escapeHtml(wp.name||'')}`, {direction:"top"});
+      });
+
+      // حافلة بين المدرسة والمحطة الحالية / المحطة التالية
+      const currentStation = orderedStations[app.currentIndex] || orderedStations[0];
+      const busPosition = currentStation
+        ? [currentStation.lat, currentStation.lng]
+        : schoolCoords;
+
+      app.busMarker = L.marker(busPosition, { icon: busIcon(), zIndexOffset: 1000 })
+        .addTo(app.layerGroup)
+        .bindTooltip(`${escapeHtml(app.route.bus)} · ${escapeHtml(app.route.driver)}`, { direction: "top" });
+
+      fitRouteBounds();
+      updatePanel();
+      } catch (error) {
+        console.error("Route map render error:", error);
+        showMapStatus("تم تحميل بيانات الرحلة، لكن حدث خطأ أثناء رسم الخريطة. أعد فتح الرحلة.", "error");
+        showToast("حدث خطأ في رسم المسار: " + (error?.message || "خطأ غير معروف"));
+      }
+    }
+
+    function refreshMarkerStyles() {
+      getOrderedStations().forEach(station => {
+        const marker = app.studentMarkers.get(station.id);
+        if (!marker) return;
+        marker.setIcon(stationIcon(directionDisplayNumber(station), station.sequence === app.currentIndex + 1));
+        marker.setZIndexOffset(station.sequence === app.currentIndex + 1 ? 700 : 500);
+      });
+    }
+
+    function fitRouteBounds() {
+      if (!app.map || !app.route) return;
+
+      const orderedStations = getOrderedStations();
+      const points = [
+        ...(orderedStations || []).map(station => [station.lat, station.lng]),
+        SCHOOL_COORDS[app.route.code] || [33.5900, -7.6100]
+      ];
+
+      if (!points.length) return;
+
+      // احتساب مساحة الشريط العلوي ولوحة الرحلة حتى لا تختفي المحطات خلف الواجهات العائمة.
+      const panel = document.querySelector(".trip-panel");
+      const isMobile = window.matchMedia("(max-width: 699px)").matches;
+      const panelHeight = panel ? panel.getBoundingClientRect().height : 0;
+      const topPadding = isMobile ? 126 : 118;
+      const bottomPadding = isMobile
+        ? Math.min(Math.max(panelHeight + 24, 210), window.innerHeight * .48)
+        : 34;
+
+      app.map.fitBounds(L.latLngBounds(points).pad(.15), {
+        animate: true,
+        maxZoom: 15,
+        paddingTopLeft: [24, topPadding],
+        paddingBottomRight: [24, bottomPadding]
+      });
+    }
+
+    function updatePanel() {
+      if (!app.route) return;
+
+      const orderedStations = getOrderedStations();
+      const current = orderedStations[app.currentIndex] || orderedStations[0];
+      const total = orderedStations.length;
+      const completed = Math.min(app.currentIndex + 1, total);
+      const directionIsInbound = app.direction === "inbound";
+
+      $("#top-route-title").textContent = `المسار ${app.route.code} · الحافلة ${app.route.bus}`;
+      $("#top-route-subtitle").textContent = `${app.route.driver} · ${app.route.school}`;
+      $("#panel-route-title").textContent = `المسار ${app.route.code}`;
+      $("#panel-route-meta").textContent = `${app.route.bus} · السائق ${app.route.driver}`;
+      $("#direction-label").textContent = directionIsInbound ? "اتجاه الدخول" : "اتجاه الخروج";
+      $("#map-live-label").textContent = `تتبع مباشر · ${total} محطات`;
+
+      $("#inbound-btn").classList.toggle("active", directionIsInbound);
+      $("#outbound-btn").classList.toggle("active", !directionIsInbound);
+      $("#progress-start").textContent = directionIsInbound ? "1" : String(total);
+      $("#progress-end").textContent = directionIsInbound ? String(total) : "1";
+      $("#progress-count").textContent = `${completed}/${total}`;
+      renderDirectionOrder();
+      $("#progress-fill").style.width = `${Math.max(25, (completed / total) * 100)}%`;
+
+      if (current) {
+        $("#current-index").textContent = current.sequence;
+        $("#current-kicker").textContent = directionIsInbound ? "المحطة الحالية · صعود التلاميذ" : "المحطة الحالية · إنزال التلاميذ";
+        $("#current-name").textContent = current.name;
+        $("#current-detail").textContent = `${current.address} · ${current.students} تلاميذ`;
+        $("#current-eta").textContent = current.eta;
+      }
+
+      $("#next-btn").disabled = completed >= total;
+      $("#next-btn").style.opacity = completed >= total ? ".45" : "1";
+      $("#panel-note").textContent = directionIsInbound
+        ? "ترتيب الذهاب: التقاط التلاميذ من المحطة 1 حتى المحطة 4 ثم الوصول إلى المدرسة."
+        : "ترتيب العودة: مغادرة المدرسة من المحطة 4 ثم إنزال التلاميذ حتى المحطة 1.";
+
+      if (app.busMarker && current) {
+        app.busMarker.setLatLng([current.lat, current.lng]);
+        app.busMarker.setTooltipContent(`${escapeHtml(app.route.bus)} · ${escapeHtml(app.route.driver)} · المحطة ${current.sequence}`);
+      }
+    }
+
+    const tripPanel = $("#trip-panel");
+    const sheetDragZone = $("#sheet-drag-zone");
+    let sheetGesture = null;
+
+    function setSheetState(expanded, immediate = false) {
+      if (!tripPanel) return;
+
+      tripPanel.classList.toggle("sheet-expanded", expanded);
+      tripPanel.classList.toggle("sheet-collapsed", !expanded);
+      tripPanel.setAttribute("aria-expanded", String(expanded));
+      if (sheetDragZone) sheetDragZone.setAttribute("aria-expanded", String(expanded));
+
+      const settle = () => {
+        if (!app.map) return;
+        app.map.invalidateSize({ pan: false });
+        fitRouteBounds();
+      };
+
+      if (immediate) {
+        settle();
+      } else {
+        // ننتظر نهاية حركة اللوحة حتى تستخدم الخريطة ارتفاعها الحقيقي.
+        setTimeout(settle, 360);
+      }
+    }
+
+    function toggleSheet(force) {
+      const expanded = typeof force === "boolean"
+        ? force
+        : !tripPanel.classList.contains("sheet-expanded");
+      setSheetState(expanded);
+    }
+
+    function startSheetGesture(event) {
+      if (!tripPanel || !sheetDragZone) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+
+      sheetGesture = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        moved: false,
+        wasExpanded: tripPanel.classList.contains("sheet-expanded")
+      };
+
+      tripPanel.classList.add("sheet-dragging");
+      tripPanel.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    }
+
+    function moveSheetGesture(event) {
+      if (!sheetGesture || event.pointerId !== sheetGesture.pointerId) return;
+      if (Math.abs(event.clientY - sheetGesture.startY) > 8) sheetGesture.moved = true;
+      event.preventDefault();
+    }
+
+    function finishSheetGesture(event) {
+      if (!sheetGesture || event.pointerId !== sheetGesture.pointerId) return;
+
+      const deltaY = event.clientY - sheetGesture.startY;
+      const wasExpanded = sheetGesture.wasExpanded;
+      const moved = sheetGesture.moved;
+
+      tripPanel.classList.remove("sheet-dragging");
+      tripPanel.releasePointerCapture?.(event.pointerId);
+      sheetGesture = null;
+
+      if (!moved || Math.abs(deltaY) < 28) {
+        toggleSheet();
+        return;
+      }
+
+      // سحب إلى الأعلى يرفع اللوحة، وسحب إلى الأسفل ينزلها.
+      if (deltaY < -28) setSheetState(true);
+      else if (deltaY > 28) setSheetState(false);
+      else setSheetState(wasExpanded);
+    }
+
+    // المنطقة غير التفاعلية داخل اللوحة كلها تعمل كنقطة سحب؛ الأزرار تبقى قابلة للنقر بشكل طبيعي.
+    tripPanel?.addEventListener("pointerdown", event => {
+      if (event.target.closest("button, a, input, select")) return;
+      startSheetGesture(event);
+    });
+    tripPanel?.addEventListener("pointermove", moveSheetGesture);
+    tripPanel?.addEventListener("pointerup", finishSheetGesture);
+    tripPanel?.addEventListener("pointercancel", finishSheetGesture);
+    sheetDragZone?.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleSheet();
+      }
+    });
+
+    function selectDirection(direction) {
+      if (!app.route || !["inbound", "outbound"].includes(direction)) return;
+      app.direction = direction;
+      app.currentIndex = 0;
+      renderMap();
+      showToast(direction === "inbound" ? `تم تفعيل الدخول: 1 → ${app.route.stations.length}` : `تم تفعيل الخروج: ${app.route.stations.length} → 1`);
+    }
+
+    function advanceStation() {
+      if (!app.route) return;
+      const total = app.route.stations.length;
+      if (app.currentIndex >= total - 1) {
+        showToast("أنت في آخر محطة من هذا الاتجاه");
+        return;
+      }
+      app.currentIndex += 1;
+      refreshMarkerStyles();
+      updatePanel();
+      const station = getOrderedStations()[app.currentIndex];
+      if (station && app.map) {
+        app.map.panTo([station.lat, station.lng], { animate: true, duration: .45 });
+      }
+      showToast(`المحطة التالية: ${station.name}`);
+    }
+
+    async function queueTripEvent(type,extra={}){const account=readMobileState(MOBILE_STORAGE.account)||{};const event={id:`EV-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,schemaVersion:RSM_SCHEMA_VERSION,type,routeId:app.route?.code||null,busId:app.route?.busId||app.route?.bus||account.busId||null,driverId:app.route?.driverId||account.driverId||null,timestamp:new Date().toISOString(),...extra};const q=readMobileState(MOBILE_STORAGE.events)||[];q.push(event);saveMobileState(MOBILE_STORAGE.events,q.slice(-500));return event;}
+    async function syncPendingEvents(){const q=readMobileState(MOBILE_STORAGE.events)||[];if(!q.length||!navigator.onLine)return;try{const r=await fetch(RSM_API.events,{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({schemaVersion:RSM_SCHEMA_VERSION,events:q})});if(!r.ok)throw new Error(`HTTP ${r.status}`);saveMobileState(MOBILE_STORAGE.events,[]);}catch(e){console.warn("Trip event sync:",e);}}
+    async function endTrip(){if(!app.route)return;const confirmed=window.confirm("هل تريد إنهاء الرحلة الحالية؟");if(!confirmed)return;$("#end-trip-btn").disabled=true;$("#end-trip-btn").textContent="✓ تم إنهاء الرحلة";$("#trip-ended").classList.add("show");$("#connection-status").textContent="الرحلة منتهية";$("#connection-status").style.color="#9af3ca";saveMobileState(MOBILE_STORAGE.trip,{routeCode:app.route.code,direction:app.direction,currentIndex:app.currentIndex,status:"ended",endedAt:new Date().toISOString()});await queueTripEvent("trip.ended",{currentIndex:app.currentIndex,direction:app.direction});await syncPendingEvents();showToast("تم حفظ حالة الرحلة محليًا");}
+
+    function startLocationWatch() {
+      if (!navigator.geolocation) {
+        showToast("الموقع الجغرافي غير متاح في هذا المتصفح");
+        return;
+      }
+      if (app.watchId !== null) navigator.geolocation.clearWatch(app.watchId);
+      app.watchId = navigator.geolocation.watchPosition(
+        position => {
+          const current = [position.coords.latitude, position.coords.longitude];
+          if (app.busMarker) app.busMarker.setLatLng(current);
+          if (app.map) app.map.panTo(current, { animate: true, duration: .5 });
+          showToast("تم تحديث موقع الحافلة");
+        },
+        () => showToast("تعذر الوصول إلى موقعك الحالي"),
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 }
+      );
+    }
+
+    function stopLocationWatch() {
+      if (app.watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(app.watchId);
+        app.watchId = null;
+      }
+    }
+
+    const MOBILE_STORAGE = {
+      account: "rsm_mobile_account",
+      location: "rsm_mobile_location",
+      route: "rsm_mobile_route",
+      routePackage: "rsm_mobile_route_package",
+      qrSelection: "rsm_mobile_qr_selection",
+      routePackageV2: "rsm_mobile_route_package_v2"
+    };
+
+    function saveMobileState(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn(e); }
+    }
+    function readMobileState(key) {
+      try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; }
+    }
+    function showStage(stage) {
+      $("#auth-screen").classList.remove("hidden");
+      $("#login-form").classList.toggle("hidden", stage !== "login");
+      $("#setup-form").classList.toggle("hidden", stage !== "setup");
+      $("#home-screen").classList.toggle("hidden", stage !== "home");
+      $("#login-error").textContent = "";
+      $("#setup-error").textContent = "";
+    }
+    async function prepareOfflineApp(){
+      const status=document.getElementById("offline-setup-status"),btn=document.getElementById("prepare-offline-btn");
+      if(status)status.textContent="جارٍ تجهيز ملفات التطبيق…"; if(btn)btn.disabled=true; setOfflineProgress(0,'الملفات',0,5);
+      try{
+        const core=[location.href,'./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','https://unpkg.com/leaflet@1.9.4/dist/leaflet.css','https://unpkg.com/leaflet@1.9.4/dist/leaflet.js','https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'];
+        if(!('caches' in window))throw new Error('Cache API غير متاحة. افتح التطبيق عبر HTTPS.');
+        const cache=await caches.open('rsm-driver-static-v12');let done=0;
+        for(const url of core){try{const res=await fetch(url,{cache:'reload'});if(!res.ok)throw new Error('HTTP '+res.status);await cache.put(url,res.clone());}catch(e){console.warn('Offline core:',url,e);}done++;setOfflineProgress(done/core.length*100,'الملفات',done,core.length);}
+        status.textContent='تم حفظ ملفات التطبيق بنسبة 100%. اختر/أكد المدينة ثم اضغط «تحميل خريطة المنطقة».'.trim();
+        const rb=document.getElementById('download-region-map-btn'); if(rb)rb.disabled=false;
+        const savedRegion=readMobileState('rsm_region_map_ready');
+        if(savedRegion?.ready && savedRegion.city===rsmNormCity(document.getElementById('city-input')?.value)) setRegionMapState(true,'✅ خريطة المنطقة محفوظة مسبقاً.');
+        if(app.route){ await cacheRouteMapTiles(); }
+        showToast('تم تجهيز التطبيق للعمل Offline');
+      }catch(e){console.warn(e);status.textContent='تعذر التجهيز. افتح الرابط عبر HTTPS واتصل بالإنترنت ثم أعد المحاولة.';showToast('فشل تجهيز Offline');}finally{if(btn)btn.disabled=false;}
+    }
+    function showHome() {
+      const loc = readMobileState(MOBILE_STORAGE.location) || {};
+      $("#home-location-card").innerHTML = `<b>${escapeHtml(loc.region || "—")}</b><br><span>${escapeHtml(loc.city || "—")}</span>`;
+      const savedRoute = readMobileState(MOBILE_STORAGE.route);
+      const savedPackage = readMobileState(MOBILE_STORAGE.routePackageV2);
+      if (savedPackage?.schema==="RSM-ROUTE-PACKAGE") {
+        const n=(savedPackage.routes||[]).reduce((x,r)=>x+(r.stops?.length||0),0);
+        $("#route-download-status").textContent = `✓ حزمة v2 · ${savedPackage.busId||"—"} · ${(savedPackage.routes||[]).length} رحلات · ${n} محطات · محفوظة محلياً`;
+      } else if (savedRoute) {
+        $("#route-download-status").textContent = `✓ ${savedRoute.code || "المسار"} · ${savedRoute.stations?.length || 0} نقاط توقف · محفوظ محلياً`;
+      }
+      showStage("home");
+      const rb=document.getElementById('download-region-map-btn'); if(rb)rb.disabled=false;
+      const savedRegion=readMobileState('rsm_region_map_ready');
+      if(savedRegion?.ready && savedRegion.city===rsmNormCity(loc.city)) setRegionMapState(true,'✅ خريطة المنطقة محفوظة مسبقاً.');
+      else setRegionMapState(false,'⚠️ يجب تحميل خريطة المنطقة قبل مسح QR الحافلة.');
+    }
+
+    function validCoordinate(lat,lng){ return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180; }
+
+    function routeFromPayload(payload, preferredRouteCode="") {
+      if(!payload)return null;
+      const routes=Array.isArray(payload)?payload:(Array.isArray(payload.routes)?payload.routes:[]);
+      let raw=payload.route||(routes.length?routes[0]:payload);
+      const wanted=String(preferredRouteCode||"").trim().toUpperCase();
+      if(wanted&&routes.length)raw=routes.find(r=>String(r.id||r.code||r.routeCode||"").trim().toUpperCase()===wanted)||raw;
+      if(raw&&raw.value&&typeof raw.value==="object")raw=raw.value;
+      if(!raw)return null;
+      const code=String(raw.code||raw.routeCode||raw.id||"").trim().toUpperCase();
+      const stops=Array.isArray(raw.stops)?raw.stops:(Array.isArray(raw.stations)?raw.stations:[]);
+      if(!code||!stops.length)return null;
+      const students=Array.isArray(payload.students)?payload.students:[];
+      const byId=new Map(students.map(s=>[String(s.id),s]));
+      const school=payload.school&&typeof payload.school==="object"?payload.school:{};
+      const busId=String(raw.busId||raw.bus||"").trim();
+      const driverId=String(raw.driverId||"").trim();
+      const driverName=raw.driverName||raw.driver||"—";
+      const schoolName=raw.schoolName||raw.school||school.name||"—";
+      const normalizedStops=stops.map((st,i)=>{
+        const studentIds=Array.isArray(st.studentIds)?st.studentIds.map(String):[];
+        const studentList=studentIds.map(id=>byId.get(id)).filter(Boolean);
+        const lat=Number(st.lat??st.latitude),lng=Number(st.lng??st.longitude);
+        return {...st,id:st.id||`STOP-${code}-${i+1}`,order:Number(st.order)||i+1,sequence:Number(st.order)||i+1,name:st.name||st.label||`المحطة ${i+1}`,address:st.address||st.pickup||st.label||"—",studentIds,studentList,students:studentList.length||Number(st.students??st.studentCount??studentIds.length)||0,eta:st.eta||"—",lat:validCoordinate(lat,lng)?lat:null,lng:validCoordinate(lat,lng)?lng:null};
+      }).sort((a,b)=>a.order-b.order);
+      const slat=Number(raw.schoolLat??school.lat),slng=Number(raw.schoolLng??school.lng);
+      return {...raw,schemaVersion:payload.schemaVersion||raw.schemaVersion||RSM_SCHEMA_VERSION,packageType:payload.packageType||"route-school-driver-package",code,id:code,bus:busId||"—",busId,driverId,driver:driverName,driverName,school:schoolName,schoolInfo:school,color:raw.color||"#ffd447",tripType:raw.tripType||"outbound",scheduledTime:raw.scheduledTime||"",studentIds:Array.isArray(raw.studentIds)?raw.studentIds.map(String):[],stops:normalizedStops,stations:normalizedStops,schoolPoint:validCoordinate(slat,slng)?{lat:slat,lng:slng}:null,studentsDirectory:students};
+    }
+
+    function activateDownloadedRoute(route){
+      if(!route)throw new Error("ملف المسار لا يحتوي على route/stops صالحين.");
+      const normalized=routeFromPayload(route)||route;
+      saveMobileState(MOBILE_STORAGE.route,normalized);
+      saveMobileState(MOBILE_STORAGE.trip,{routeCode:normalized.code,direction:"inbound",currentIndex:0,status:"ready",updatedAt:new Date().toISOString()});
+      Object.assign(ROUTES,{[normalized.code]:normalized});
+      $("#route-download-status").textContent=`✓ ${normalized.code} · ${normalized.stops?.length||0} نقاط توقف · تم التنزيل والحفظ على الجهاز`;
+      $("#home-status").textContent="المسار جاهز"; openRoute(normalized.code);
+    }
+
+    async function downloadSentRoute(){
+      const account=readMobileState(MOBILE_STORAGE.account)||{},loc=readMobileState(MOBILE_STORAGE.location)||{},status=$("#route-download-status");
+      status.textContent="⏳ جارٍ تحميل مسار السائق…";
+      const params=new URLSearchParams(); if(account.driverId)params.set("driverId",account.driverId); if(account.busId)params.set("busId",account.busId); if(loc.region)params.set("region",loc.region); if(loc.city)params.set("city",loc.city);
+      try{const response=await fetch(`${RSM_API.routes}?${params.toString()}`,{headers:{Accept:"application/json"},cache:"no-store"}); if(!response.ok)throw new Error(`HTTP ${response.status}`); const payload=await response.json(); const wanted=new URLSearchParams(location.search).get("route"); const route=routeFromPayload(payload,wanted); if(!route)throw new Error("الاستجابة لا تحتوي على مسار صالح."); activateDownloadedRoute(route); await syncPendingEvents();}
+      catch(error){status.textContent="تعذر تحميل المسار من الخادم. يمكنك استيراد ملف route-school-driver-package.json.";showToast("تعذر تحميل المسار المرسل");console.warn("Route download:",error);}
+    }
+
+    function openRoute(code) {
+      const normalized = String(code || "").trim().toUpperCase();
+      const route = ROUTES[normalized];
+      if (!route) {
+        showToast("لا يوجد مسار بهذا الكود على الجهاز");
+        return;
+      }
+
+      app.route = route;
+      app.direction = "inbound";
+      app.currentIndex = 0;
+      setSheetState(true, true);
+      $("#login-error").textContent = "";
+      $("#auth-screen").classList.add("hidden");
+      const shell = $("#app-shell");
+      shell.classList.add("is-ready");
+
+      buildMap();
+      if (app.map) {
+        // نضيف class بعد أول إطار حتى تبدأ لوحة الرحلة من خارج الشاشة ثم تنزل بسلاسة إلى الأسفل.
+        requestAnimationFrame(() => {
+          shell.classList.add("panel-mounted");
+          app.map.invalidateSize({ pan: false });
+          renderMap();
+          fitRouteBounds();
+          const offlineStatus=document.getElementById('offline-setup-status');
+          if(offlineStatus)offlineStatus.textContent=`تم فتح ${route.code} · اضغط زر ⬇ لتحميل خريطة المسار Offline.`;
+        });
+
+        setTimeout(() => {
+          app.map.invalidateSize({ pan: false });
+          fitRouteBounds();
+        }, 520);
+      } else {
+        shell.classList.add("panel-mounted");
+        $("#offline-note").classList.add("show");
+        updatePanel();
+      }
+    }
+
+    function logout() {
+      stopLocationWatch();
+      if (app.map) {
+        app.map.remove();
+        app.map = null;
+        app.layerGroup = null;
+      }
+      app.route = null;
+      app.currentIndex = 0;
+      setSheetState(false, true);
+      $("#app-shell").classList.remove("is-ready", "panel-mounted");
+      $("#auth-screen").classList.remove("hidden");
+      
+      $("#end-trip-btn").disabled = false;
+      $("#end-trip-btn").textContent = "⏻ إنهاء الرحلة";
+      $("#trip-ended").classList.remove("show");
+    }
+
+    // Authentication -> region/city setup -> home.
+    function enterSetup(email) {
+      saveMobileState(MOBILE_STORAGE.account, { email, loggedAt: new Date().toISOString() });
+      showStage("setup");
+    }
+
+    $("#login-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const email = $("#login-email").value.trim();
+      const password = $("#login-password").value;
+      if (!email || !password) {
+        $("#login-error").textContent = "أدخل البريد الإلكتروني وكلمة المرور.";
+        return;
+      }
+      enterSetup(email);
+    });
+    $("#demo-login").addEventListener("click", () => enterSetup("driver@routeschool.ma"));
+
+    $("#setup-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const region = $("#region-select").value;
+      const city = $("#city-input").value.trim();
+      if (!region || !city) {
+        $("#setup-error").textContent = "اختر الجهة واكتب اسم المدينة.";
+        return;
+      }
+      const previous=readMobileState(MOBILE_STORAGE.location)||{};
+      saveMobileState(MOBILE_STORAGE.location, { region, city, updatedAt: new Date().toISOString() });
+      const savedRegion=readMobileState('rsm_region_map_ready');
+      if(!savedRegion?.ready || savedRegion.city!==rsmNormCity(city) || previous.city!==city) localStorage.removeItem('rsm_region_map_ready');
+      showHome();
+    });
+
+    $("#download-route-btn").addEventListener("click", downloadSentRoute);
+    $("#open-demo-route-btn").addEventListener("click", () => {
+      if(!ROUTES.R01){showToast("المسار التجريبي غير متاح");return;}
+      openRoute("R01");
+      showToast("تم فتح المسار التجريبي R01. جرّب زري الدخول والخروج.");
+    });
+    $("#import-route-btn").addEventListener("click", () => $("#route-json-file").click());
+    $("#route-json-file").addEventListener("change", async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const payload = JSON.parse(await file.text());
+        if(payload?.schema==="RSM-ROUTE-PACKAGE" && Number(payload?.version)===2){
+          await activateQrPackage(normalizeV2Package(payload));
+        } else {
+          const route = routeFromPayload(payload);
+          if (!route) throw new Error("JSON غير صالح للمسارات.");
+          activateDownloadedRoute(route);
+        }
+      } catch (error) {
+        $("#route-download-status").textContent = "❌ ملف JSON غير صالح أو لا يحتوي على محطات.";
+        showToast("فشل استيراد المسار");
+      } finally { event.target.value = ""; }
+    });
+    $("#home-logout-btn").addEventListener("click", () => logoutToAuth());
+
+    function logoutToAuth() {
+      stopLocationWatch();
+      if (app.map) { app.map.remove(); app.map = null; app.layerGroup = null; }
+      app.route = null; app.currentIndex = 0;
+      $("#app-shell").classList.remove("is-ready", "panel-mounted");
+      showStage("login");
+      $("#login-password").value = "";
+    }
+
+    // Direction switcher
+    document.querySelectorAll("[data-direction]").forEach(button => {
+      button.addEventListener("click", () => selectDirection(button.dataset.direction));
+    });
+
+    $("#next-btn").addEventListener("click", advanceStation);
+    $("#end-trip-btn").addEventListener("click", endTrip);
+    $("#logout-btn").addEventListener("click", logoutToAuth);
+    $("#route-fit-btn").addEventListener("click", fitRouteBounds);
+    $("#recenter-btn").addEventListener("click", () => {
+      if (!app.map) return;
+      const current = getOrderedStations()[app.currentIndex];
+      if (current) app.map.setView([current.lat, current.lng], 15, { animate: true });
+    });
+    $("#locate-btn").addEventListener("click", startLocationWatch);
+
+    // Keyboard shortcuts are useful for dispatch / desktop testing.
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && app.route) logout();
+      if (event.key === "ArrowLeft" && app.route) advanceStation();
+      if (event.key === "1" && app.route) selectDirection("inbound");
+      if (event.key === "4" && app.route) selectDirection("outbound");
+    });
+
+    // Show a non-blocking notice when Leaflet CDN is unavailable.
+    window.addEventListener("offline", () => $("#offline-note").classList.add("show"));
+    window.addEventListener("online", () => { $("#offline-note").classList.remove("show"); syncPendingEvents(); });
+
+    // إعادة حساب مساحة Leaflet عند تغيير حجم الشاشة أو تدوير الهاتف.
+    let resizeTimer;
+    function refreshMapLayout() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (!app.map) return;
+        app.map.invalidateSize({ pan: false });
+        fitRouteBounds();
+      }, 120);
+    }
+    window.addEventListener("resize", refreshMapLayout, { passive: true });
+    window.addEventListener("orientationchange", refreshMapLayout, { passive: true });
+
+    // Restore the last setup after reopening the app.
+    const savedAccount = readMobileState(MOBILE_STORAGE.account);
+    const savedLocation = readMobileState(MOBILE_STORAGE.location);
+    if (savedAccount && savedLocation) showHome();
+    else if (savedAccount) showStage("setup");
+    else showStage("login");
+  </script>
+
+<script id="rsm-driver-qr-module">
+(function(){
+  'use strict';
+  const PREFIX='RSQR', VERSION='1';
+  function b64ToBytes(s){
+    s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length%4)s+='=';
+    const bin=atob(s), bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    return bytes;
+  }
+  async function decodeQrCompressedPayload(encoding,data){
+    const bytes=b64ToBytes(data);
+    if(encoding==='plain') return new TextDecoder().decode(bytes);
+    if(encoding==='deflate-raw' && 'DecompressionStream' in window){
+      const ds=new DecompressionStream('deflate-raw');
+      const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
+      return new TextDecoder().decode(new Uint8Array(ab));
+    }
+    throw new Error('هذا QR مضغوط. افتح التطبيق بمتصفح حديث يدعم فك ضغط Deflate.');
+  }
+  const QR_V2_PREFIX='RSR2', QR_V2_VERSION='2';
+  const qrMultipartStore=new Map();
+  function baseRoute(code){return String(code||'').trim().toUpperCase().replace(/-D\d+$/i,'');}
+
+  async function parseQrPayload(text){
+    const raw=String(text||'').trim();
+    if(!raw) throw new Error('QR فارغ.');
+
+    // RSM-ROUTE-PACKAGE v2 — single compressed QR
+    if(raw.startsWith(QR_V2_PREFIX+'|')){
+      const a=raw.split('|');
+      if(a[1]!==QR_V2_VERSION) throw new Error('إصدار حزمة QR غير مدعوم.');
+      if(a[2]==='part'){
+        if(a.length<7) throw new Error('جزء QR غير صالح.');
+        const packageId=a[3], index=Number(a[4]), total=Number(a[5]), chunk=a.slice(6).join('|');
+        if(!packageId||!Number.isInteger(index)||!Number.isInteger(total)||index<1||index>total) throw new Error('بيانات أجزاء QR غير صالحة.');
+        let entry=qrMultipartStore.get(packageId);
+        if(!entry){entry={total,parts:new Map(),createdAt:Date.now()};qrMultipartStore.set(packageId,entry);}
+        if(entry.total!==total) throw new Error('عدد أجزاء QR غير متطابق.');
+        entry.parts.set(index,chunk);
+        if(entry.parts.size<total){
+          const missing=[];for(let n=1;n<=total;n++)if(!entry.parts.has(n))missing.push(n);
+          return {partial:true,packageId,received:entry.parts.size,total,missing};
+        }
+        const data=[...Array(total)].map((_,i)=>entry.parts.get(i+1)).join('');
+        qrMultipartStore.delete(packageId);
+        return parseQrPayload(`${QR_V2_PREFIX}|${QR_V2_VERSION}|deflate-raw|${data}`);
+      }
+      const encoding=a[2],data=a.slice(3).join('|');
+      if(!data) throw new Error('حزمة QR لا تحتوي على بيانات.');
+      const json=await decodeQrCompressedPayload(encoding,data);
+      const pkg=JSON.parse(json);
+      return normalizeV2Package(pkg);
+    }
+
+    // Legacy QR support — retained for backward compatibility.
+    const a=raw.split('|');
+    if(a[0]!=='RSQR'||a[1]!=='1'||!a[2])throw new Error('QR Route School Maroc غير صالح.');
+    const busId=a[2].trim();
+    const trips=(a[3]||'').split(';').map(x=>x.trim()).filter(Boolean).map(part=>{
+      const m=part.match(/^([^:]+):D(\d+)=([\d,]*)$/i);
+      if(!m)throw new Error('صيغة رحلة QR غير صالحة.');
+      return {routeCode:m[1].trim().toUpperCase(),tripNo:Number(m[2]),stopNumbers:m[3]?m[3].split(',').map(Number).filter(Number.isFinite):[]};
+    });
+    if(!trips.length)throw new Error('لا توجد رحلات داخل QR.');
+    return {legacy:true,schemaVersion:1,busId,trips};
+  }
+
+  function normalizeV2Package(pkg){
+    if(!pkg||pkg.schema!=='RSM-ROUTE-PACKAGE'||Number(pkg.version)!==2)throw new Error('ملف/QR ليس من نوع RSM-ROUTE-PACKAGE v2.');
+    if(!Array.isArray(pkg.routes)||!pkg.routes.length)throw new Error('حزمة v2 لا تحتوي على مسارات.');
+    const school=pkg.school&&typeof pkg.school==='object'?pkg.school:{};
+    const bus=pkg.bus&&typeof pkg.bus==='object'?pkg.bus:{};
+    const students=[];
+    const routes=pkg.routes.map((r,ri)=>{
+      const stops=(Array.isArray(r.stops)?r.stops:[]).slice().sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0)).map((s,i)=>{
+        const lat=Number(s.lat),lng=Number(s.lng);
+        const ids=Array.isArray(s.studentIds)?s.studentIds.map(String):[];
+        const names=Array.isArray(s.studentNames)?s.studentNames.filter(Boolean):[];
+        const count=Math.max(Number(s.studentCount)||0,ids.length,names.length);
+        return {
+          id:String(s.id||`STOP-${r.id||ri+1}-${i+1}`),
+          sequence:Number(s.order)||i+1,
+          order:Number(s.order)||i+1,
+          name:s.name||`المحطة ${i+1}`,
+          address:s.address||s.pickup||'—',
+          students:count,
+          studentCount:count,
+          studentIds:ids,
+          studentNames:names,
+          lat:Number.isFinite(lat)?lat:null,
+          lng:Number.isFinite(lng)?lng:null,
+          eta:s.eta||'—'
+        };
+      });
+      const geometry=(Array.isArray(r.geometry)?r.geometry:[]).map(p=>Array.isArray(p)&&p.length>=2?[Number(p[0]),Number(p[1])]:null).filter(p=>p&&Number.isFinite(p[0])&&Number.isFinite(p[1]));
+      const waypoints=(Array.isArray(r.waypoints)?r.waypoints:[]).map(w=>({id:w.id||'',name:w.name||'',lat:Number(w.lat),lng:Number(w.lng),mandatory:w.mandatory!==false})).filter(w=>Number.isFinite(w.lat)&&Number.isFinite(w.lng));
+      const code=String(r.id||r.name||`R${ri+1}`).toUpperCase();
+      return {
+        ...r, code,id:code,bus:String(r.busId||bus.id||'—'),busId:String(r.busId||bus.id||''),
+        driver:r.driverName||r.driver||'—',driverName:r.driverName||r.driver||'—',
+        school:school.name||'—',schoolName:school.name||'—',
+        schoolInfo:school,color:r.color||'#ffd447',routeColor:r.color||'#ffd447',
+        schoolPoint:validCoordinate(Number(school.lat),Number(school.lng))?{lat:Number(school.lat),lng:Number(school.lng)}:null,
+        stations:stops,stops,geometry,routingGeometry:geometry,
+        waypoints,routing:r.routing||{provider:'OSRM',profile:'driving',status:'ok'},
+        tripBatch:Number(r.tripBatch)||ri+1,qrTripNo:Number(r.tripBatch)||ri+1,
+        scheduledTime:r.scheduledTime||'',distanceKm:r.distanceKm??null,
+        routingDistanceKm:r.distanceKm??null,routingDurationSec:r.durationSec??null,
+        studentsDirectory:Array.isArray(pkg.students)?pkg.students:[]
+      };
+    });
+    return {
+      ...pkg,schemaVersion:2,packageType:'RSM-ROUTE-PACKAGE',
+      busId:String(bus.id||routes[0].busId||''),
+      bus,school,routes,trips:routes.map((r,i)=>({
+        routeCode:r.code,tripNo:r.tripBatch,stopNumbers:r.stops.map(s=>s.sequence)
+      }))
+    };
+  }
+
+  window.rsmParseRoutePackageV2=parseQrPayload;
+  window.rsmParseBusQr=parseQrPayload;
+
+  async function activateQrPackage(pkg){
+    if(pkg?.partial){
+      renderQrPartialStatus(pkg);
+      showToast(`تم استلام جزء ${pkg.received}/${pkg.total} من QR`);
+      return;
+    }
+
+    // v2 package: all operational data comes from the QR itself.
+    if(pkg?.schemaVersion===2 && pkg.schema==='RSM-ROUTE-PACKAGE'){
+      const normalized=normalizeV2Package(pkg);
+      const routeMap={};
+      normalized.routes.forEach(r=>{
+        ROUTES[r.code]=r;
+        routeMap[r.code]=r;
+      });
+      saveMobileState(MOBILE_STORAGE.routePackage,normalized);
+      saveMobileState(MOBILE_STORAGE.routePackageV2,normalized);
+      saveMobileState(MOBILE_STORAGE.qrSelection,{busId:normalized.busId,trips:normalized.trips,packageId:normalized.packageId});
+      saveMobileState(MOBILE_STORAGE.route,routeMap[normalized.routes[0].code]);
+      renderQrSelection(normalized);
+      openRoute(normalized.routes[0].code);
+      showToast(`تم استيراد الحزمة الكاملة · ${normalized.routes.length} رحلات · ${normalized.routes.reduce((n,r)=>n+r.stops.length,0)} محطة`);
+      setTimeout(()=>{const status=document.getElementById('offline-setup-status');if(status)status.textContent=`تم التعرف على ${normalized.busId} و${normalized.routes[0].code}. اضغط زر ⬇ في الخريطة لتحميل الخريطة Offline.`;},450);
+      return;
+    }
+
+    // Legacy fallback
+    const baseRoutes=[];
+    pkg.trips.forEach(t=>{
+      const source=ROUTES[baseRoute(t.routeCode)];
+      if(!source)throw new Error(`المسار ${t.routeCode} غير موجود على الجهاز.`);
+      const clone=JSON.parse(JSON.stringify(source));
+      clone.code=t.routeCode; clone.id=t.routeCode; clone.bus=pkg.busId; clone.busId=pkg.busId; clone.qrTripNo=t.tripNo;
+      const all=clone.stations||[];
+      const selected=t.stopNumbers.length?t.stopNumbers.map(n=>all[n-1]).filter(Boolean):all;
+      clone.stations=selected.map((s,i)=>({...s,sequence:i+1,originalSequence:all.indexOf(s)+1}));
+      clone.stops=clone.stations; clone.routeColor=clone.color;
+      baseRoutes.push(clone); ROUTES[clone.code]=clone;
+    });
+    saveMobileState(MOBILE_STORAGE.routePackage,{schemaVersion:1,busId:pkg.busId,trips:pkg.trips,updatedAt:new Date().toISOString()});
+    saveMobileState(MOBILE_STORAGE.qrSelection,{busId:pkg.busId,trips:pkg.trips});
+    renderQrSelection(pkg);
+    openRoute(baseRoutes[0].code);
+    showToast(`تم التعرف على ${pkg.busId} · ${pkg.trips.length} رحلات`);
+  }
+
+  function renderQrPartialStatus(p){
+    const box=document.getElementById('qr-selected-summary');if(!box)return;
+    box.innerHTML=`<span class="qr-trip-chip">📦 حزمة v2</span><span class="qr-trip-chip">جزء ${p.received}/${p.total}</span><span class="qr-trip-chip">المتبقي ${p.missing.join(', ')}</span>`;
+  }
+
+  function renderQrSelection(pkg){
+    const box=document.getElementById('qr-selected-summary'); if(!box)return;
+    box.innerHTML=`<span class="qr-trip-chip">🚌 ${escapeHtml(pkg.busId)}</span>`+pkg.trips.map(t=>`<button type="button" class="qr-route-chip" data-qr-route="${escapeHtml(t.routeCode)}">${escapeHtml(baseRoute(t.routeCode))} · D${t.tripNo} · ${t.stopNumbers.length} محطات</button>`).join('');
+    box.querySelectorAll('[data-qr-route]').forEach(btn=>btn.addEventListener('click',()=>openRoute(btn.dataset.qrRoute)));
+  }
+  function restoreQrSelection(){const p=readMobileState(MOBILE_STORAGE.qrSelection);if(p&&p.busId&&Array.isArray(p.trips))renderQrSelection(p);}
+  let scanner=null, running=false, nativeStream=null, nativeVideo=null, nativeLoopToken=0;
+
+  function hasNativeQr(){return 'BarcodeDetector' in window;}
+  async function decodeNativeQrFile(file){
+    if(!hasNativeQr()) throw new Error('قارئ QR الأصلي غير متاح في هذا المتصفح. استخدم Chrome حديثاً أو اتصل بالإنترنت لتحميل قارئ QR الاحتياطي.');
+    const Detector=window.BarcodeDetector;
+    let detector;
+    try{detector=new Detector({formats:['qr_code']});}catch(e){detector=new Detector();}
+    let bitmap=null;
+    try{
+      bitmap=await createImageBitmap(file);
+      const results=await detector.detect(bitmap);
+      const hit=results?.find(x=>x.rawValue);
+      if(!hit)throw new Error('لم يتم العثور على QR واضح في الصورة. استعمل PNG الأصلي بجودة عالية أو قرّب الرمز.');
+      return hit.rawValue;
+    }finally{try{bitmap?.close();}catch(e){}}
+  }
+
+  async function stopNativeCamera(){
+    nativeLoopToken++;
+    if(nativeVideo){try{nativeVideo.pause();nativeVideo.srcObject=null;}catch(e){}}
+    if(nativeStream){nativeStream.getTracks().forEach(t=>{try{t.stop();}catch(e){}});}
+    nativeVideo=null;nativeStream=null;
+  }
+
+  async function startNativeCamera(status){
+    if(!hasNativeQr()) throw new Error('قارئ QR الأصلي غير متاح.');
+    if(!navigator.mediaDevices?.getUserMedia) throw new Error('الكاميرا غير متاحة في هذا السياق. افتح التطبيق عبر HTTPS/PWA.');
+    const ov=document.getElementById('qr-scanner-overlay');
+    const reader=document.getElementById('qr-reader');
+    ov.style.display='flex';
+    reader.innerHTML='<video id="rsm-native-qr-video" autoplay playsinline muted style="width:100%;max-height:62vh;object-fit:cover;border-radius:14px;background:#000"></video>';
+    nativeVideo=document.getElementById('rsm-native-qr-video');
+    nativeStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    nativeVideo.srcObject=nativeStream;
+    await nativeVideo.play();
+    status.textContent='الكاميرا تعمل. وجّهها إلى QR الحافلة.';
+    const Detector=window.BarcodeDetector;let detector;
+    try{detector=new Detector({formats:['qr_code']});}catch(e){detector=new Detector();}
+    const token=++nativeLoopToken;
+    const scan=async()=>{
+      if(token!==nativeLoopToken||!nativeVideo||nativeVideo.readyState<2)return;
+      try{
+        const results=await detector.detect(nativeVideo);
+        const hit=results?.find(x=>x.rawValue);
+        if(hit?.rawValue){
+          const text=hit.rawValue;
+          try{
+            const pkg=await parseQrPayload(text);
+            if(pkg?.partial){
+              await activateQrPackage(pkg);
+              setTimeout(scan, 300);
+              return;
+            }
+            await closeScanner();
+            await activateQrPackage(pkg);
+            return;
+          }catch(e){status.textContent=e.message||'تم العثور على QR لكنه غير صالح.';}
+        }
+      }catch(e){}
+      setTimeout(scan,180);
+    };
+    scan();
+  }
+
+  async function stopScanner(){
+    await stopNativeCamera();
+    if(scanner&&running){try{await scanner.stop();}catch(e){}try{scanner.clear();}catch(e){}}
+    running=false;scanner=null;
+  }
+  async function closeScanner(){await stopScanner();document.getElementById('qr-scanner-overlay')?.style.setProperty('display','none');}
+
+  async function openScanner(){
+    const ov=document.getElementById('qr-scanner-overlay');
+    if(!ov)return;
+    const status=document.getElementById('qr-scan-status');
+    // file:// cannot reliably use getUserMedia. Use the phone's native image capture and decode it locally.
+    if(!isSecureCameraContext()){
+      status.textContent='هذا الملف مفتوح محلياً؛ سيتم فتح كاميرا الهاتف لالتقاط صورة QR ثم قراءتها داخل التطبيق.';
+      document.getElementById('qr-camera-capture')?.click();
+      return;
+    }
+    try{
+      if(hasNativeQr()){
+        await startNativeCamera(status);
+        return;
+      }
+    }catch(e){
+      console.warn('Native QR camera:',e);
+      await stopNativeCamera();
+      status.textContent='تعذر تشغيل قارئ QR الأصلي؛ تجربة القارئ الاحتياطي…';
+    }
+    ov.style.display='flex';
+    status.textContent='وجّه الكاميرا إلى رمز QR المطبوع على الحافلة.';
+    if(typeof Html5Qrcode==='undefined'){
+      status.textContent='قارئ QR غير متاح. استخدم زر «صورة من الهاتف» أو افتح التطبيق عبر HTTPS مع الإنترنت لأول مرة.';
+      return;
+    }
+    scanner=new Html5Qrcode('qr-reader');
+    try{
+      await scanner.start({facingMode:{ideal:'environment'}},{fps:10,qrbox:{width:240,height:240}},async text=>{
+        try{const pkg=await parseQrPayload(text);if(pkg?.partial){await activateQrPackage(pkg);return;}await closeScanner();await activateQrPackage(pkg);}
+        catch(e){status.textContent=e.message||'QR غير صالح لهذا التطبيق.';}
+      },()=>{});
+      running=true;
+    }catch(e){
+      console.warn('QR camera fallback:',e);
+      status.textContent='تعذر تشغيل الكاميرا. استخدم «صورة من الهاتف».';
+    }
+  }
+
+  async function scanQrImageFile(file){
+    if(!file)return;
+    const status=document.getElementById('qr-scan-status');
+    try{
+      let text=null;
+      // Prefer browser-native QR decoding: works without CDN/internet on supported Android Chrome.
+      if(hasNativeQr()){
+        text=await decodeNativeQrFile(file);
+      }else if(typeof Html5Qrcode!=='undefined'){
+        const tempId='qr-image-reader-temp';
+        let temp=document.getElementById(tempId);
+        if(!temp){temp=document.createElement('div');temp.id=tempId;temp.style.cssText='position:fixed;left:-99999px;top:-99999px;width:320px;height:320px;overflow:hidden;';document.body.appendChild(temp);}
+        const reader=new Html5Qrcode(tempId);
+        try{text=await reader.scanFile(file,true);}finally{try{reader.clear();}catch(e){}}
+      }else{
+        throw new Error('هذا المتصفح لا يملك قارئ QR مدمجاً ولا توجد مكتبة QR احتياطية. افتح Chrome حديثاً أو اتصل بالإنترنت أول مرة.');
+      }
+      const pkg=await parseQrPayload(text);
+      await activateQrPackage(pkg);
+      showToast(pkg.partial?`تم استلام جزء ${pkg.received}/${pkg.total}`:`تم استيراد ${pkg.busId||'حزمة الرحلة'} من صورة QR`);
+    }catch(e){
+      console.warn('QR image scan:',e);
+      status.textContent=e?.message||'تعذر قراءة QR من الصورة.';
+      showToast(e?.message||'تعذر قراءة QR من الصورة');
+    }
+  }
+
+  async function consumeSharedQrImage(){
+    try{
+      if(!('indexedDB' in window))return;
+      const req=indexedDB.open('rsm-driver-share',1);
+      req.onupgradeneeded=()=>req.result.createObjectStore('files',{keyPath:'id'});
+      req.onsuccess=()=>{
+        const db=req.result,tx=db.transaction('files','readwrite'),store=tx.objectStore('files'),get=store.get('latest');
+        get.onsuccess=async()=>{const item=get.result;if(!item?.blob)return;store.delete('latest');await scanQrImageFile(new File([item.blob],item.name||'shared-qr.jpg',{type:item.type||'image/jpeg'}));};
+      };
+    }catch(e){console.warn('Shared QR image:',e);}
+  }
+  const accountOrig=window.enterSetup;
+  const oldShowHome=window.showHome;
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('open-qr-scanner-btn')?.addEventListener('click',openScanner);
+    document.getElementById('pick-qr-image-btn')?.addEventListener('click',()=>document.getElementById('qr-image-file')?.click());
+    document.getElementById('qr-image-file')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file)await scanQrImageFile(file);e.target.value='';});
+    document.getElementById('qr-camera-capture')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(file)await scanQrImageFile(file);e.target.value='';});
+    document.getElementById('cache-map-btn')?.addEventListener('click',cacheRouteMapTiles);
+    document.getElementById('close-qr-scanner-btn')?.addEventListener('click',closeScanner);
+    document.getElementById('qr-scanner-overlay')?.addEventListener('click',e=>{if(e.target.id==='qr-scanner-overlay')closeScanner();});
+    restoreQrSelection();
+    consumeSharedQrImage();
+    if(location.protocol==="file:"){
+      setTimeout(()=>showMapStatus("تنبيه: التشغيل كملف محلي لا يضمن الكاميرا الحية. زر QR سيستخدم كاميرا الهاتف لالتقاط صورة."));
+    }
+  });
+  document.getElementById("prepare-offline-btn")?.addEventListener("click",prepareOfflineApp);
+  document.getElementById("download-region-map-btn")?.addEventListener("click",cacheRegionMapTiles);
+  if('serviceWorker' in navigator && /^https?:$/i.test(location.protocol)){
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./route-school-driver-sw.js').catch(err=>console.warn('PWA service worker:',err)));
+  }
+})();
+</script>
+</body>
+</html>
